@@ -1,0 +1,2173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Career Simulator</title>
+    <style>
+      :root {
+        --bg: #f7f1e7;
+        --bg-deep: #eadcc9;
+        --panel: rgba(255, 251, 245, 0.88);
+        --panel-strong: rgba(255, 255, 255, 0.96);
+        --line: rgba(93, 67, 39, 0.12);
+        --ink: #2d2218;
+        --muted: #7b6550;
+        --accent: #c56f39;
+        --accent-deep: #8f4820;
+        --accent-soft: rgba(197, 111, 57, 0.12);
+        --shadow: 0 22px 60px rgba(96, 63, 36, 0.14);
+        --radius-xl: 28px;
+        --radius-lg: 22px;
+        --radius-md: 16px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(213, 169, 119, 0.26), transparent 26%),
+          radial-gradient(circle at top right, rgba(197, 111, 57, 0.14), transparent 24%),
+          linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+        font-family: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+      }
+
+      .app {
+        width: min(1120px, calc(100% - 28px));
+        margin: 0 auto;
+        padding: 28px 0 48px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+
+      .brand-title {
+        font-size: clamp(28px, 5vw, 48px);
+        line-height: 1.05;
+        margin: 0;
+      }
+
+      .brand-note {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .screen {
+        display: none;
+      }
+
+      .screen.active {
+        display: block;
+      }
+
+      .grid {
+        display: grid;
+        gap: 20px;
+      }
+
+      .grid-home {
+        grid-template-columns: 1.18fr 0.82fr;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(12px);
+      }
+
+      .hero-card {
+        padding: 30px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .hero-card::after {
+        content: "";
+        position: absolute;
+        right: -36px;
+        top: -42px;
+        width: 190px;
+        height: 190px;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(197, 111, 57, 0.2), transparent 70%);
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent-deep);
+        font-size: 12px;
+        letter-spacing: 0.08em;
+      }
+
+      .hero-layout {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        gap: 22px;
+        align-items: center;
+        margin-top: 18px;
+      }
+
+      .mascot-wrap {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .xiaoke {
+        position: relative;
+        width: var(--xiaoke-size, 126px);
+        height: var(--xiaoke-size, 126px);
+        border-radius: 999px;
+        background:
+          radial-gradient(circle at 30% 30%, #ffffff 0%, #fffdf8 46%, #f0e8dd 72%, #e2d5c5 100%);
+        box-shadow:
+          0 16px 30px rgba(113, 80, 51, 0.14),
+          inset 0 -10px 18px rgba(205, 192, 178, 0.26);
+        animation: xiaoke-bounce 3s ease-in-out infinite;
+      }
+
+      .xiaoke-eye {
+        position: absolute;
+        width: 11%;
+        height: 15%;
+        top: 36%;
+        background: #2f241b;
+        border-radius: 50%;
+      }
+
+      .xiaoke-eye.left {
+        left: 31%;
+      }
+
+      .xiaoke-eye.right {
+        right: 31%;
+      }
+
+      .xiaoke-mouth {
+        position: absolute;
+        left: 50%;
+        bottom: 27%;
+        width: 24%;
+        height: 11%;
+        transform: translateX(-50%);
+        border-bottom: max(2px, 0.18em) solid #7c4f34;
+        border-radius: 0 0 20px 20px;
+      }
+
+      .xiaoke-fluff {
+        position: absolute;
+        inset: -6px;
+        border-radius: inherit;
+        background:
+          radial-gradient(circle at 12% 40%, rgba(255, 255, 255, 0.92) 0%, transparent 16%),
+          radial-gradient(circle at 84% 24%, rgba(255, 255, 255, 0.9) 0%, transparent 18%),
+          radial-gradient(circle at 22% 88%, rgba(255, 255, 255, 0.88) 0%, transparent 16%),
+          radial-gradient(circle at 80% 84%, rgba(255, 255, 255, 0.9) 0%, transparent 18%);
+        filter: blur(1px);
+        pointer-events: none;
+      }
+
+      @keyframes xiaoke-bounce {
+        0%, 84%, 100% {
+          transform: translateY(0);
+        }
+        8% {
+          transform: translateY(-12px);
+        }
+        14% {
+          transform: translateY(0);
+        }
+      }
+
+      .hero-copy {
+        margin: 0;
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.9;
+      }
+
+      .hero-actions,
+      .row-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 22px;
+      }
+
+      .button,
+      .button-ghost {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        padding: 12px 20px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        font: inherit;
+        cursor: pointer;
+        text-decoration: none;
+        transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+      }
+
+      .button {
+        color: #fff9f2;
+        background: linear-gradient(180deg, #d58049 0%, #bf6935 100%);
+        box-shadow: 0 14px 28px rgba(145, 77, 36, 0.18);
+      }
+
+      .button-ghost {
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.9);
+        border-color: rgba(93, 67, 39, 0.12);
+      }
+
+      .button:hover,
+      .button-ghost:hover {
+        transform: translateY(-1px);
+      }
+
+      .history-card,
+      .panel-card {
+        padding: 24px;
+      }
+
+      .section-title {
+        margin: 0;
+        font-size: 22px;
+      }
+
+      .section-copy {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.8;
+      }
+
+      .history-list {
+        display: grid;
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .history-item {
+        padding: 14px 15px;
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(93, 67, 39, 0.08);
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .history-main {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        align-items: start;
+      }
+
+      .history-role {
+        font-size: 16px;
+      }
+
+      .history-meta {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.7;
+      }
+
+      .history-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .mini-btn {
+        min-height: 36px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(93, 67, 39, 0.12);
+        background: rgba(255, 255, 255, 0.92);
+        color: var(--ink);
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .empty-state {
+        margin-top: 18px;
+        padding: 15px 16px;
+        border-radius: var(--radius-md);
+        background: rgba(255, 255, 255, 0.72);
+        color: var(--muted);
+        line-height: 1.8;
+      }
+
+      .home-status {
+        margin-top: 16px;
+        padding: 14px 16px;
+        border-radius: var(--radius-md);
+        background: rgba(255, 255, 255, 0.76);
+        border: 1px solid rgba(93, 67, 39, 0.08);
+        color: var(--muted);
+        line-height: 1.8;
+      }
+
+      .home-status.error {
+        border-color: rgba(172, 68, 52, 0.2);
+        background: rgba(255, 243, 239, 0.92);
+        color: #8d4334;
+      }
+
+      .journey-card {
+        padding: 30px;
+      }
+
+      .journey-head {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        gap: 20px;
+        align-items: center;
+      }
+
+      .journey-bubble {
+        padding: 22px;
+        border-radius: var(--radius-lg);
+        background: var(--panel-strong);
+        border: 1px solid rgba(93, 67, 39, 0.08);
+      }
+
+      .journey-bubble p,
+      .result-copy p {
+        margin: 0 0 14px;
+        line-height: 1.9;
+      }
+
+      .journey-bubble p:last-child,
+      .result-copy p:last-child {
+        margin-bottom: 0;
+      }
+
+      .progress-strip {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-top: 22px;
+      }
+
+      .progress-text {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .progress-bar {
+        flex: 1;
+        height: 10px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(93, 67, 39, 0.08);
+      }
+
+      .progress-fill {
+        height: 100%;
+        width: 0;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #d58049 0%, #bf6935 100%);
+        transition: width 220ms ease;
+      }
+
+      .question-card,
+      .result-card {
+        margin-top: 18px;
+        padding: 24px;
+        border-radius: var(--radius-lg);
+        background: rgba(255, 255, 255, 0.74);
+        border: 1px solid rgba(93, 67, 39, 0.08);
+      }
+
+      .question-tag {
+        display: inline-flex;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent-deep);
+        font-size: 12px;
+        letter-spacing: 0.06em;
+      }
+
+      .question-title {
+        margin: 14px 0 10px;
+        font-size: 26px;
+      }
+
+      .question-help {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.8;
+      }
+
+      .field {
+        margin-top: 18px;
+      }
+
+      .text-input,
+      .text-area,
+      .json-box {
+        width: 100%;
+        padding: 16px 18px;
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(93, 67, 39, 0.12);
+        background: rgba(255, 255, 255, 0.96);
+        color: var(--ink);
+        font: inherit;
+        line-height: 1.8;
+      }
+
+      .text-area,
+      .json-box {
+        min-height: 168px;
+        resize: vertical;
+      }
+
+      .json-box {
+        min-height: 260px;
+      }
+
+      .upload-box {
+        min-height: 220px;
+      }
+
+      .step-note,
+      .status-box {
+        margin-top: 16px;
+        padding: 14px 16px;
+        border-radius: var(--radius-md);
+        background: rgba(255, 255, 255, 0.76);
+        border: 1px solid rgba(93, 67, 39, 0.08);
+        color: var(--muted);
+        line-height: 1.8;
+      }
+
+      .status-box.error {
+        border-color: rgba(172, 68, 52, 0.2);
+        background: rgba(255, 243, 239, 0.92);
+        color: #8d4334;
+      }
+
+      .json-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .record-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.9);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .file-label {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        padding: 12px 20px;
+        border-radius: 999px;
+        border: 1px solid rgba(93, 67, 39, 0.12);
+        background: rgba(255, 255, 255, 0.9);
+        color: var(--ink);
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .hidden-input {
+        display: none;
+      }
+
+      .sim-grid {
+        display: grid;
+        grid-template-columns: 0.88fr 1.12fr;
+        gap: 18px;
+      }
+
+      .sim-stack {
+        display: grid;
+        gap: 18px;
+      }
+
+      .sim-card {
+        padding: 22px;
+        border-radius: var(--radius-lg);
+        background: rgba(255, 255, 255, 0.74);
+        border: 1px solid rgba(93, 67, 39, 0.08);
+      }
+
+      .sim-copy {
+        color: var(--muted);
+        line-height: 1.8;
+        font-size: 14px;
+      }
+
+      .meta-list,
+      .sim-history {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .meta-item,
+      .sim-history-item {
+        padding: 12px 14px;
+        border-radius: var(--radius-md);
+        background: rgba(255, 255, 255, 0.88);
+        border: 1px solid rgba(93, 67, 39, 0.08);
+      }
+
+      .meta-item strong,
+      .sim-history-item strong {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .sim-scene {
+        padding: 22px;
+        border-radius: var(--radius-lg);
+        background: rgba(255, 255, 255, 0.88);
+        border: 1px solid rgba(93, 67, 39, 0.08);
+      }
+
+      .sim-scene.past {
+        opacity: 0.84;
+      }
+
+      .sim-scene.ending {
+        background: linear-gradient(180deg, rgba(255, 252, 248, 0.96) 0%, rgba(246, 236, 225, 0.96) 100%);
+      }
+
+      .sim-scene-tag {
+        display: inline-flex;
+        margin-bottom: 12px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent-deep);
+        font-size: 12px;
+        letter-spacing: 0.05em;
+      }
+
+      .sim-scene h2 {
+        margin: 0 0 12px;
+        font-size: 28px;
+      }
+
+      .sim-scene p {
+        margin: 0 0 14px;
+        line-height: 1.9;
+      }
+
+      .sim-subtitle {
+        margin-bottom: 14px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .sim-options {
+        display: grid;
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .sim-option {
+        width: 100%;
+        padding: 15px 16px;
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(93, 67, 39, 0.12);
+        background: rgba(255, 255, 255, 0.96);
+        color: var(--ink);
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .sim-option-code {
+        display: inline-flex;
+        width: 28px;
+        height: 28px;
+        align-items: center;
+        justify-content: center;
+        margin-right: 10px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent-deep);
+        font-size: 12px;
+      }
+
+      .sim-picked,
+      .sim-materials,
+      .sim-ending {
+        margin-top: 16px;
+        padding: 14px 16px;
+        border-radius: var(--radius-md);
+        background: rgba(255, 255, 255, 0.82);
+        border: 1px solid rgba(93, 67, 39, 0.08);
+      }
+
+      .sim-materials-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      @media (max-width: 920px) {
+        .sim-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 920px) {
+        .grid-home,
+        .hero-layout,
+        .journey-head {
+          grid-template-columns: 1fr;
+        }
+
+        .brand {
+          align-items: start;
+          flex-direction: column;
+        }
+
+        .mascot-wrap {
+          justify-content: start;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .app {
+          width: min(100% - 18px, 100%);
+          padding-top: 20px;
+          padding-bottom: 30px;
+        }
+
+        .hero-card,
+        .history-card,
+        .panel-card,
+        .journey-card {
+          padding: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <header class="brand">
+        <div>
+          <h1 class="brand-title">Career Simulator</h1>
+          <div class="brand-note">先认识你，再替你把职业旅程的入口对准。</div>
+        </div>
+      </header>
+
+      <section class="screen active" id="screen-home">
+        <div class="grid grid-home">
+          <article class="card hero-card">
+            <div class="eyebrow">HOME</div>
+            <div class="hero-layout">
+              <div class="mascot-wrap">
+                <div class="xiaoke" aria-hidden="true">
+                  <div class="xiaoke-fluff"></div>
+                  <div class="xiaoke-eye left"></div>
+                  <div class="xiaoke-eye right"></div>
+                  <div class="xiaoke-mouth"></div>
+                </div>
+              </div>
+              <div>
+                <p class="hero-copy">
+                  Hi我是小可，准备好开始奇妙的职业体验之旅了吗？如果你不知道某个岗位是否适合自己，在正式投入之前，尝试模拟体验一下吧！
+                </p>
+                <div class="hero-actions">
+                  <button class="button" id="start-game-btn" type="button">开始游戏</button>
+                  <button class="button-ghost" id="start-sim-btn" type="button">直接开始模拟</button>
+                </div>
+                <div class="home-status" id="home-status">
+                  如果你已经收集过岗位信息，可以直接开始模拟，继续上传故事脚本进入体验。
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <aside class="card history-card">
+            <h2 class="section-title">历史记录</h2>
+            <p class="section-copy">
+              这里会保存你在这台设备上生成过的职业画像输入文件。你可以随时回来查看、下载，或者继续拿去生成新的职业旅程脚本。
+            </p>
+            <div id="history-root" class="history-list"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-intro">
+        <article class="card journey-card">
+          <div class="journey-head">
+            <div class="mascot-wrap">
+              <div class="xiaoke" aria-hidden="true">
+                <div class="xiaoke-fluff"></div>
+                <div class="xiaoke-eye left"></div>
+                <div class="xiaoke-eye right"></div>
+                <div class="xiaoke-mouth"></div>
+              </div>
+            </div>
+            <div class="journey-bubble result-copy">
+              <p>
+                嗨，我是小可，是这次职业旅程的带领者～在我们正式出发之前，你可以先告诉我，你想去看看哪个职业吗？如果能再告诉我一些相关信息就更好啦，比如岗位名称、平时主要在做什么、公司所在行业，还有公司规模这些，我就能为你定制这段旅程了噢！
+              </p>
+            </div>
+          </div>
+
+          <div class="row-actions">
+            <button class="button" id="begin-profile-btn" type="button">岗位信息收集</button>
+          </div>
+        </article>
+      </section>
+
+      <section class="screen" id="screen-profile-transition">
+        <article class="card journey-card">
+          <div class="journey-head">
+            <div class="mascot-wrap">
+              <div class="xiaoke" aria-hidden="true">
+                <div class="xiaoke-fluff"></div>
+                <div class="xiaoke-eye left"></div>
+                <div class="xiaoke-eye right"></div>
+                <div class="xiaoke-mouth"></div>
+              </div>
+            </div>
+            <div class="journey-bubble result-copy">
+              <p id="profile-transition-copy"></p>
+            </div>
+          </div>
+
+          <div class="row-actions">
+            <button class="button" id="begin-profile-questions-btn" type="button">开始画像收集</button>
+            <button class="button-ghost" id="skip-profile-after-job-btn" type="button">跳过画像收集</button>
+          </div>
+        </article>
+      </section>
+
+      <section class="screen" id="screen-journey">
+        <article class="card journey-card">
+          <div class="journey-head">
+            <div class="mascot-wrap">
+              <div class="xiaoke" aria-hidden="true">
+                <div class="xiaoke-fluff"></div>
+                <div class="xiaoke-eye left"></div>
+                <div class="xiaoke-eye right"></div>
+                <div class="xiaoke-mouth"></div>
+              </div>
+            </div>
+            <div class="journey-bubble result-copy">
+              <p id="journey-lead"></p>
+            </div>
+          </div>
+
+          <div class="progress-strip">
+            <div class="progress-text" id="step-text">第 1 题 / 共 1 题</div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="step-fill"></div>
+            </div>
+          </div>
+
+          <div class="question-card">
+            <div class="question-tag" id="question-tag">用户画像</div>
+            <h2 class="question-title" id="question-title">题目</h2>
+            <div class="question-help" id="question-help"></div>
+            <div class="field" id="field-root"></div>
+            <div class="step-note" id="question-note"></div>
+            <div class="row-actions">
+              <button class="button-ghost" id="prev-step-btn" type="button">上一题</button>
+              <button class="button" id="next-step-btn" type="button">下一题</button>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="screen" id="screen-result">
+        <article class="card journey-card">
+          <div class="journey-head">
+            <div class="mascot-wrap">
+              <div class="xiaoke" aria-hidden="true">
+                <div class="xiaoke-fluff"></div>
+                <div class="xiaoke-eye left"></div>
+                <div class="xiaoke-eye right"></div>
+                <div class="xiaoke-mouth"></div>
+              </div>
+            </div>
+            <div class="journey-bubble result-copy" id="result-copy"></div>
+          </div>
+
+          <div class="result-card">
+            <div class="json-head">
+              <div>
+                <h2 class="section-title" style="font-size: 24px;">职业画像输入 JSON</h2>
+                <div class="section-copy">这份文件会保存在当前浏览器里，你也可以立刻下载带走。</div>
+              </div>
+              <div class="record-pill" id="record-pill">未保存</div>
+            </div>
+
+            <textarea id="result-json" class="json-box" readonly></textarea>
+            <div class="row-actions">
+              <button class="button" id="download-json-btn" type="button">下载 JSON</button>
+              <button class="button-ghost" id="copy-json-btn" type="button">复制 JSON</button>
+              <button class="button-ghost" id="restart-flow-btn" type="button">重新开始</button>
+              <button class="button-ghost" id="result-home-btn" type="button">回到首页</button>
+            </div>
+            <div class="status-box" id="result-status">
+              下载后，把这份 JSON 交给小可，就可以继续生成可交互的职业旅程脚本啦。
+            </div>
+          </div>
+
+          <div class="result-card">
+            <div class="json-head">
+              <div>
+                <h2 class="section-title" style="font-size: 24px;">下一步：上传职业旅程脚本</h2>
+                <div class="section-copy">当小可根据上面的输入 JSON 生成好交互文本脚本后，你可以直接把故事脚本 JSON 上传到这里，然后进入模拟。</div>
+              </div>
+            </div>
+
+            <textarea
+              id="script-input"
+              class="json-box upload-box"
+              placeholder="把小可生成的故事脚本 JSON 粘贴到这里，或者用下面的按钮上传文件。"
+            ></textarea>
+            <div class="row-actions">
+              <button class="button" id="load-script-btn" type="button">载入脚本并开始模拟</button>
+              <label class="file-label" for="script-file">上传脚本 JSON</label>
+              <input class="hidden-input" id="script-file" type="file" accept=".json,application/json,text/json" />
+            </div>
+            <div class="status-box" id="script-status">
+              这里读取的是可游玩的故事脚本 JSON，不是上面的输入 JSON。
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="screen" id="screen-simulator">
+        <div class="sim-grid">
+          <aside class="sim-stack">
+            <article class="card sim-card">
+              <div class="eyebrow" id="sim-eyebrow">SIMULATION</div>
+              <h2 class="section-title" id="sim-title" style="margin-top: 14px;">职业旅程</h2>
+              <p class="sim-copy" id="sim-description"></p>
+              <div class="meta-list" id="sim-meta"></div>
+            </article>
+
+            <article class="card sim-card">
+              <div class="progress-strip" style="margin-top: 0;">
+                <div class="progress-text" id="sim-progress-text">0 / 0</div>
+                <div class="progress-bar">
+                  <div class="progress-fill" id="sim-progress-fill"></div>
+                </div>
+              </div>
+              <div class="sim-history" id="sim-history"></div>
+              <div class="row-actions">
+                <button class="button-ghost" id="sim-restart-btn" type="button">重新开始模拟</button>
+                <button class="button-ghost" id="sim-back-btn" type="button">返回结果页</button>
+              </div>
+            </article>
+          </aside>
+
+          <section class="sim-stack">
+            <div id="sim-root"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const STORAGE_KEY = "ifi-profile-history-v2";
+      const MAX_HISTORY = 12;
+
+      const jobJourneyLead = "在我们正式出发之前，你可以先告诉我，你想去看看哪个职业吗？如果能再告诉我一些相关信息就更好啦，比如岗位名称、平时主要在做什么、公司所在行业，还有公司规模这些，我就能为你定制这段旅程了噢！";
+      const profileJourneyLead = "每一份工作都有特别的任务和氛围，即便看起来像是在做差不多的事，真正走进去以后，节奏、压力落点，还有让人觉得有成就感的地方，往往都不太一样呢。所以在出发之前，我想多认识你一点点呀。这样等我们真的走进这份职业的时候，你看到的那些细节、卡住的时刻，还有会让你眼睛亮一下的瞬间，也许会让你更有共鸣，也能帮你更好理解这个岗位。";
+
+      const profileQuestions = [
+        {
+          key: "work_style_preference",
+          tag: "用户画像",
+          title: "如果只看工作本身，你通常会更喜欢什么样的工作方式呢？",
+          prompt:
+            "比如是节奏稳定一点的、可以和人有很多互动的、能够自己慢慢琢磨清楚的，还是更有变化感、会一直往前推着走的那一类？你也可以不按这些来说，直接告诉我你的感觉就好呀。",
+          note: "不用答得很标准，先把你的直觉说出来就好。",
+          type: "textarea",
+          placeholder: "写下你更喜欢的工作方式……"
+        },
+        {
+          key: "pressure_response",
+          tag: "用户画像",
+          title: "如果压力慢慢上来了，或者事情一下子堆到你面前的时候，你的第一反应通常会是什么呢？",
+          prompt:
+            "你会更像先自己消化一下、先整理清楚再动，还是会想先找人确认一下方向呀？",
+          note: "可以写你最常见的状态，也可以写你最怕自己掉进去的状态。",
+          type: "textarea",
+          placeholder: "比如：会先焦虑、会先理顺顺序、会先找人确认……"
+        },
+        {
+          key: "social_energy",
+          tag: "用户画像",
+          title: "和人打交道对你来说，通常会更像补能量，还是更像慢慢消耗能量呢？",
+          prompt:
+            "如果放到工作里，你会更习惯主动靠近人，还是先观察一下再决定怎么互动呀？",
+          note: "你可以写工作里的自己，不一定和生活中的自己完全一样。",
+          type: "textarea",
+          placeholder: "比如：可以互动，但更喜欢有目的的协作……"
+        },
+        {
+          key: "authority_style",
+          tag: "用户画像",
+          title: "如果面对上级、老师、带你的人，或者更有经验的前辈时，你通常会更像什么状态呢？",
+          prompt:
+            "你会比较自然地靠近一点，还是会先把分寸放在前面呀？",
+          note: "如果你会先组织语言、担心说错，也可以直接写出来。",
+          type: "textarea",
+          placeholder: "比如：会先斟酌怎么问，怕显得不成熟……"
+        },
+        {
+          key: "ambiguity_response",
+          tag: "用户画像",
+          title: "如果别人突然给你一个有点模糊、边界也没那么清楚的任务，你更常见的第一反应通常会是什么呀？",
+          prompt:
+            "你会先自己猜着做一版、先停下来问清楚，还是会因为不太确定而卡一下呢？",
+          note: "写你最自然的第一反应就可以，不需要写理想状态。",
+          type: "textarea",
+          placeholder: "比如：会先自己整理一下，再去确认方向……"
+        },
+        {
+          key: "detail_sensitivity",
+          tag: "用户画像",
+          title: "你对细节和错误通常会比较是什么态度呢？",
+          prompt:
+            "你会是那种做完就能交出去的人，还是会下意识再检查一遍，确认心里稳了才会放手呀？",
+          note: "如果你特别在意低级错误，也可以写这件事会怎么影响你。",
+          type: "textarea",
+          placeholder: "比如：会再检查一遍，不想因为小错影响整体判断……"
+        },
+        {
+          key: "conflict_style",
+          tag: "用户画像",
+          title: "如果工作里真的出现一点人际冲突，或者大家的想法对不上了，你通常会更像怎么处理呀？",
+          prompt:
+            "你会想直接说开、先看看气氛，还是会更想找一个不那么正面碰撞的方式慢慢把它调过去呢？",
+          note: "这里没有标准答案，写你最像自己的处理方式就好。",
+          type: "textarea",
+          placeholder: "比如：我会先看氛围，再决定怎么说比较合适……"
+        },
+        {
+          key: "reward_source",
+          tag: "用户画像",
+          title: "什么样的反馈最容易让你觉得“这件事做得值了”呢？",
+          prompt:
+            "是被认真认可、事情真的被推进了、问题被解决了，还是你能很明确地感觉到自己帮到了别人呀？",
+          note: "可以不只写一种，只要写最打动你的那一类就好。",
+          type: "textarea",
+          placeholder: "比如：事情真的往前走了，而且最后有明确产出……"
+        },
+        {
+          key: "drain_source",
+          tag: "用户画像",
+          title: "如果真要说一类最容易慢慢把你磨掉的工作体验，它通常会是什么呢？",
+          prompt:
+            "比如高频模糊、被催着往前走、需要临场解释、一直担心做错，或者别的什么也可以呀。",
+          note: "这一题会直接影响后面职业旅程里哪些地方更容易让你消耗。",
+          type: "textarea",
+          placeholder: "写下最容易让你长期消耗的工作体验……"
+        }
+      ];
+
+      const jobQuestions = [
+        {
+          key: "role_name",
+          tag: "岗位信息",
+          title: "你想去看的岗位名称是什么呢？",
+          prompt: "写得越具体，后面的职业旅程就越容易落到真实工作现场。",
+          note: "写得越具体，后面的职业旅程就越容易落到真实工作现场。",
+          type: "input",
+          placeholder: "例如：研究实习生（数据洞察）"
+        },
+        {
+          key: "job_tasks",
+          tag: "岗位信息",
+          title: "这份工作平时主要在做什么呢？",
+          prompt: "你可以把岗位 JD、工作任务，或者面试里听到的核心内容告诉我呀。",
+          note: "如果你手上有完整 JD，也可以直接贴进来。",
+          type: "textarea",
+          placeholder: "例如：阅读访谈纪要、整理洞察、协助客户同步、项目制推进……"
+        },
+        {
+          key: "industry",
+          tag: "岗位信息",
+          title: "这家公司大概在哪个行业里呢？",
+          prompt: "如果你知道它是乙方、甲方、创业公司，或者服务的是哪类产品，也可以一起说出来呀。",
+          note: "行业会直接影响工作节奏和压力来源。",
+          type: "input",
+          placeholder: "例如：市场调研（乙方）"
+        },
+        {
+          key: "company_size",
+          tag: "岗位信息",
+          title: "公司规模你大概知道吗？",
+          prompt: "如果不是特别确定也没关系，写一个大概范围就可以啦。",
+          note: "比如 20 人以下、100-500 人、上市公司 1000+ 这样都可以。",
+          type: "input",
+          placeholder: "例如：100-500 人"
+        },
+        {
+          key: "additional_context",
+          tag: "岗位信息",
+          title: "如果还有别的线索，也一起告诉我吧。",
+          prompt: "比如项目制、合作对象、甲方类型、团队氛围、面试中让你印象很深的一句话，这些都会让旅程更贴近一点呢。",
+          note: "这一题可以留空，但如果你知道额外信息，建议写上。",
+          type: "textarea",
+          placeholder: "例如：最近做 AI 陪伴产品调研，客户是业内 top 公司，工作偏项目制……"
+        }
+      ];
+
+      const screens = {
+        home: document.getElementById("screen-home"),
+        intro: document.getElementById("screen-intro"),
+        profileTransition: document.getElementById("screen-profile-transition"),
+        journey: document.getElementById("screen-journey"),
+        result: document.getElementById("screen-result"),
+        simulator: document.getElementById("screen-simulator")
+      };
+
+      const historyRoot = document.getElementById("history-root");
+      const homeStatus = document.getElementById("home-status");
+      const journeyLead = document.getElementById("journey-lead");
+      const profileTransitionCopy = document.getElementById("profile-transition-copy");
+      const questionTag = document.getElementById("question-tag");
+      const questionTitle = document.getElementById("question-title");
+      const questionHelp = document.getElementById("question-help");
+      const questionNote = document.getElementById("question-note");
+      const fieldRoot = document.getElementById("field-root");
+      const stepText = document.getElementById("step-text");
+      const stepFill = document.getElementById("step-fill");
+      const resultCopy = document.getElementById("result-copy");
+      const resultJson = document.getElementById("result-json");
+      const resultStatus = document.getElementById("result-status");
+      const recordPill = document.getElementById("record-pill");
+      const scriptInput = document.getElementById("script-input");
+      const scriptFile = document.getElementById("script-file");
+      const scriptStatus = document.getElementById("script-status");
+      const simEyebrow = document.getElementById("sim-eyebrow");
+      const simTitle = document.getElementById("sim-title");
+      const simDescription = document.getElementById("sim-description");
+      const simMeta = document.getElementById("sim-meta");
+      const simProgressText = document.getElementById("sim-progress-text");
+      const simProgressFill = document.getElementById("sim-progress-fill");
+      const simHistory = document.getElementById("sim-history");
+      const simRoot = document.getElementById("sim-root");
+
+      const startGameBtn = document.getElementById("start-game-btn");
+      const startSimBtn = document.getElementById("start-sim-btn");
+      const beginProfileBtn = document.getElementById("begin-profile-btn");
+      const beginProfileQuestionsBtn = document.getElementById("begin-profile-questions-btn");
+      const skipProfileAfterJobBtn = document.getElementById("skip-profile-after-job-btn");
+      const prevStepBtn = document.getElementById("prev-step-btn");
+      const nextStepBtn = document.getElementById("next-step-btn");
+      const downloadJsonBtn = document.getElementById("download-json-btn");
+      const copyJsonBtn = document.getElementById("copy-json-btn");
+      const restartFlowBtn = document.getElementById("restart-flow-btn");
+      const resultHomeBtn = document.getElementById("result-home-btn");
+      const loadScriptBtn = document.getElementById("load-script-btn");
+      const simRestartBtn = document.getElementById("sim-restart-btn");
+      const simBackBtn = document.getElementById("sim-back-btn");
+
+      const state = {
+        includeProfile: true,
+        steps: [],
+        currentStepIndex: 0,
+        answers: {},
+        currentPayload: null,
+        currentRecordId: null,
+        jobCompleted: false,
+        activeScript: null,
+        simCurrentId: null,
+        simHistory: [],
+        simChoices: {},
+        simScore: { fit: 0, stress: 0, growth: 0 }
+      };
+
+      const tagRules = {
+        work_style_preference: [
+          ["变化感", ["变化", "新鲜", "项目制", "不同"]],
+          ["推进感", ["推进", "往前", "成就", "结果", "产出"]],
+          ["稳定感", ["稳定", "规律", "边界"]],
+          ["互动导向", ["互动", "沟通", "合作"]],
+          ["独立思考", ["自己想", "琢磨", "独立"]]
+        ],
+        pressure_response: [
+          ["推进焦虑", ["焦虑", "着急", "来不及"]],
+          ["自我施压", ["给自己压力", "盯着", "逼自己"]],
+          ["先整理", ["整理", "理清", "顺序"]],
+          ["先确认", ["确认", "对齐", "问清"]],
+          ["先自己扛", ["自己扛", "先自己", "先消化"]]
+        ],
+        social_energy: [
+          ["社交消耗", ["消耗", "累", "不喜欢纯社交"]],
+          ["互动补能", ["补能量", "有能量", "喜欢和人"]],
+          ["目的性协作", ["有目的", "协作", "配合"]],
+          ["先观察", ["先观察", "再决定", "慢一点"]]
+        ],
+        authority_style: [
+          ["表达谨慎", ["组织语言", "斟酌", "谨慎"]],
+          ["评价敏感", ["说错", "评价", "显得", "不成熟"]],
+          ["主动请教", ["请教", "主动问", "确认"]],
+          ["保持距离", ["分寸", "距离", "打扰"]]
+        ],
+        ambiguity_response: [
+          ["先整理后确认", ["先整理", "再确认", "先理一理"]],
+          ["先做一版", ["先做一版", "试试看", "边做边看"]],
+          ["不喜欢盲冲", ["不盲冲", "不想乱冲", "不想瞎做"]],
+          ["容易卡住", ["卡住", "不确定", "没底"]]
+        ],
+        detail_sensitivity: [
+          ["主动检查", ["检查", "再看一遍", "确认一下"]],
+          ["低错敏感", ["低级错误", "犯错", "做错"]],
+          ["责任感强", ["放心", "稳了", "站得住"]],
+          ["速度优先", ["差不多", "先交", "先推进"]]
+        ],
+        conflict_style: [
+          ["看氛围", ["看氛围", "看气氛", "看时机"]],
+          ["直接说开", ["直接说", "说开", "当面"]],
+          ["避免正面碰撞", ["避免", "不正面", "绕一下"]],
+          ["找中间方式", ["折中", "中间", "缓一缓"]]
+        ],
+        reward_source: [
+          ["推进感", ["推进", "往前"]],
+          ["产出导向", ["产出", "结果", "落地"]],
+          ["被认可", ["认可", "肯定", "表扬"]],
+          ["帮到别人", ["帮到", "支持别人", "有价值"]],
+          ["学习成长", ["学到", "成长", "变强"]]
+        ],
+        drain_source: [
+          ["高压敏感", ["高压", "赶", "被催", "来不及"]],
+          ["模糊任务消耗", ["模糊", "不清楚", "没边界"]],
+          ["返工消耗", ["返工", "改来改去"]],
+          ["临场表达压力", ["临场", "解释", "当场讲"]],
+          ["高标准消耗", ["高标准", "要求高", "一直要稳"]]
+        ]
+      };
+
+      function escapeHtml(text) {
+        return String(text || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function normalizeText(value) {
+        return String(value || "").replace(/\s+/g, " ").trim();
+      }
+
+      function showScreen(name) {
+        Object.entries(screens).forEach(([key, element]) => {
+          element.classList.toggle("active", key === name);
+        });
+      }
+
+      function setHomeStatus(message, isError = false) {
+        homeStatus.textContent = message;
+        homeStatus.classList.toggle("error", Boolean(isError));
+      }
+
+      function loadHistory() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return [];
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+          return [];
+        }
+      }
+
+      function saveHistory(entries) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(entries.slice(0, MAX_HISTORY)));
+      }
+
+      function formatTime(timestamp) {
+        const date = new Date(timestamp);
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+      }
+
+      function renderHistory() {
+        const entries = loadHistory();
+        if (entries.length === 0) {
+          historyRoot.innerHTML = `
+            <div class="empty-state">
+              你还没有生成过职业画像输入文件。点一下“开始游戏”，小可就会带你一步一步往里走啦。
+            </div>
+          `;
+          return;
+        }
+
+        historyRoot.innerHTML = entries
+          .map((entry) => {
+            const role = escapeHtml(entry.payload.job_input.role_name || "未命名岗位");
+            const industry = escapeHtml(entry.payload.job_input.industry || "未填写行业");
+            const mode = entry.payload.profile_skipped ? "跳过画像收集" : "完整画像收集";
+            return `
+              <div class="history-item">
+                <div class="history-main">
+                  <div>
+                    <div class="history-role">${role}</div>
+                    <div class="history-meta">
+                      ${escapeHtml(industry)}<br />
+                      ${escapeHtml(formatTime(entry.createdAt))} · ${escapeHtml(mode)}
+                    </div>
+                  </div>
+                </div>
+                <div class="history-actions">
+                  <button class="mini-btn" type="button" data-action="view" data-id="${escapeHtml(entry.id)}">查看 JSON</button>
+                  <button class="mini-btn" type="button" data-action="download" data-id="${escapeHtml(entry.id)}">下载</button>
+                  <button class="mini-btn" type="button" data-action="delete" data-id="${escapeHtml(entry.id)}">删除</button>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+
+        historyRoot.querySelectorAll(".mini-btn").forEach((button) => {
+          button.addEventListener("click", () => {
+            const action = button.getAttribute("data-action");
+            const id = button.getAttribute("data-id");
+            const entry = loadHistory().find((item) => item.id === id);
+            if (!entry) return;
+
+            if (action === "download") {
+              downloadPayload(entry.payload);
+              return;
+            }
+
+            if (action === "delete") {
+              const nextEntries = loadHistory().filter((item) => item.id !== id);
+              saveHistory(nextEntries);
+              if (state.currentRecordId === id) {
+                state.currentRecordId = null;
+              }
+              renderHistory();
+              setHomeStatus("这条岗位信息记录已经删除。", false);
+              return;
+            }
+
+            loadHistoryEntry(entry);
+          });
+        });
+      }
+
+      function buildFlow(includeProfile) {
+        const steps = [];
+        jobQuestions.forEach((item) => steps.push({ ...item, section: "job" }));
+        if (includeProfile) {
+          profileQuestions.forEach((item) => steps.push({ ...item, section: "profile" }));
+        }
+        return steps;
+      }
+
+      function resetFlow(includeProfile) {
+        state.includeProfile = includeProfile;
+        state.steps = buildFlow(includeProfile);
+        state.currentStepIndex = 0;
+        state.answers = {};
+        state.currentPayload = null;
+        state.currentRecordId = null;
+        state.jobCompleted = false;
+      }
+
+      function startFlow(includeProfile) {
+        resetFlow(includeProfile);
+        journeyLead.textContent = jobJourneyLead;
+        showScreen("journey");
+        renderStep();
+      }
+
+      function showProfileTransition() {
+        state.jobCompleted = true;
+        profileTransitionCopy.textContent = profileJourneyLead;
+        showScreen("profileTransition");
+      }
+
+      function renderInput(step) {
+        const value = state.answers[step.key] || "";
+        if (step.type === "input") {
+          fieldRoot.innerHTML = `
+            <input
+              id="step-input"
+              class="text-input"
+              type="text"
+              value="${escapeHtml(value)}"
+              placeholder="${escapeHtml(step.placeholder || "")}"
+            />
+          `;
+          return;
+        }
+
+        fieldRoot.innerHTML = `
+          <textarea
+            id="step-input"
+            class="text-area"
+            placeholder="${escapeHtml(step.placeholder || "")}"
+          >${escapeHtml(value)}</textarea>
+        `;
+      }
+
+      function renderStep() {
+        const step = state.steps[state.currentStepIndex];
+        if (!step) return;
+
+        const sectionQuestions = step.section === "job" ? jobQuestions : profileQuestions;
+        const sectionStartIndex = step.section === "job" ? 0 : jobQuestions.length;
+        const sectionIndex = state.currentStepIndex - sectionStartIndex + 1;
+
+        journeyLead.textContent = step.section === "job" ? jobJourneyLead : profileJourneyLead;
+        questionTag.textContent = step.tag;
+        questionTitle.textContent = step.title;
+        questionHelp.textContent = step.prompt;
+        questionNote.textContent = step.note;
+        stepText.textContent = `${step.tag} · 第 ${sectionIndex} 题 / 共 ${sectionQuestions.length} 题`;
+        stepFill.style.width = `${(sectionIndex / sectionQuestions.length) * 100}%`;
+        prevStepBtn.style.visibility = state.currentStepIndex === 0 ? "hidden" : "visible";
+        nextStepBtn.textContent = state.currentStepIndex === state.steps.length - 1 ? "完成收集" : "下一题";
+        renderInput(step);
+      }
+
+      function persistCurrentAnswer() {
+        const step = state.steps[state.currentStepIndex];
+        const input = document.getElementById("step-input");
+        state.answers[step.key] = normalizeText(input ? input.value : "");
+      }
+
+      function inferTags(fieldKey, rawText) {
+        const rules = tagRules[fieldKey] || [];
+        const text = normalizeText(rawText);
+        if (!text) return [];
+
+        const hits = [];
+        rules.forEach(([tag, keywords]) => {
+          if (keywords.some((keyword) => text.includes(keyword))) {
+            hits.push(tag);
+          }
+        });
+        return [...new Set(hits)];
+      }
+
+      function buildPayload() {
+        const userProfile = {};
+        profileQuestions.forEach((question) => {
+          const raw = normalizeText(state.answers[question.key]);
+          userProfile[question.key] = {
+            raw,
+            summary: raw,
+            tags: inferTags(question.key, raw)
+          };
+        });
+
+        return {
+          version: "ifi-profile-input-v1",
+          source: "ifi-web-collector-v2",
+          generated_at: new Date().toISOString(),
+          profile_skipped: !state.includeProfile,
+          generation_note: "请根据这个 JSON 里的岗位信息和用户画像，生成可交互的职业模拟故事 JSON。",
+          job_input: {
+            role_name: normalizeText(state.answers.role_name),
+            job_tasks: normalizeText(state.answers.job_tasks),
+            industry: normalizeText(state.answers.industry),
+            company_size: normalizeText(state.answers.company_size),
+            additional_context: normalizeText(state.answers.additional_context)
+          },
+          user_profile: userProfile
+        };
+      }
+
+      function makeRecordId() {
+        return `ifi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      }
+
+      function saveCurrentPayload(payload) {
+        const entries = loadHistory();
+        const entry = {
+          id: makeRecordId(),
+          createdAt: Date.now(),
+          payload
+        };
+        entries.unshift(entry);
+        saveHistory(entries);
+        state.currentRecordId = entry.id;
+        return entry;
+      }
+
+      function buildResultCopy(payload) {
+        if (payload.profile_skipped) {
+          return [
+            "岗位信息已经收好啦。这一次你先跳过了用户画像收集，所以我先替你整理出一份基础版的旅程输入文件。",
+            "等你把它交给小可之后，后面的职业旅程会先按中性视角去生成；如果你以后想让故事更贴近自己的反应、压力点和成就感来源，再回来补画像也完全可以呀。"
+          ];
+        }
+
+        return [
+          "那就对准啦。",
+          "我现在对你的这段职业旅程已经有比较清楚的感觉了。等我们真的走进去的时候，哪些任务会让你一下子进入状态，哪些推进方式会让你有成就感，哪些模糊、催促和高标准又会慢慢把你的压力拉起来，这些我都会一起带进去呀。",
+          "如果按这条路继续，下一步就该正式进入职业旅程本身了。你会从刚进项目、第一次接到任务、第一次看资料、第一次和人确认方向开始，一点点走进这个岗位最真实的节奏里噢。",
+          "我已经替你把这份输入文件整理好了。下载后，把它交给小可，我们的下一段体验就可以继续开始啦。"
+        ];
+      }
+
+      function renderResult(entry) {
+        state.currentPayload = entry.payload;
+        state.currentRecordId = entry.id;
+        resultCopy.innerHTML = buildResultCopy(entry.payload)
+          .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
+          .join("");
+        resultJson.value = JSON.stringify(entry.payload, null, 2);
+        recordPill.textContent = `已保存 · ${formatTime(entry.createdAt)}`;
+        resultStatus.textContent = "下载后，把这份 JSON 交给小可，就可以继续生成可交互的职业旅程脚本啦。";
+        resultStatus.classList.remove("error");
+        showScreen("result");
+      }
+
+      function finalizeFlow() {
+        const payload = buildPayload();
+        const entry = saveCurrentPayload(payload);
+        renderHistory();
+        renderResult(entry);
+      }
+
+      function setResultStatus(message, isError = false) {
+        resultStatus.textContent = message;
+        resultStatus.classList.toggle("error", Boolean(isError));
+      }
+
+      function setScriptStatus(message, isError = false) {
+        scriptStatus.textContent = message;
+        scriptStatus.classList.toggle("error", Boolean(isError));
+      }
+
+      function downloadText(filename, text) {
+        const blob = new Blob([text], { type: "application/json;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function safeFilename(roleName) {
+        return (roleName || "ifi-profile").replace(/[\\/:*?"<>|]/g, "-");
+      }
+
+      function downloadPayload(payload) {
+        const filename = `${safeFilename(payload.job_input.role_name)}-profile.json`;
+        downloadText(filename, JSON.stringify(payload, null, 2));
+      }
+
+      async function copyText(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+          return;
+        }
+
+        const temp = document.createElement("textarea");
+        temp.value = text;
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand("copy");
+        document.body.removeChild(temp);
+      }
+
+      function loadHistoryEntry(entry) {
+        state.currentPayload = entry.payload;
+        state.currentRecordId = entry.id;
+        renderResult(entry);
+      }
+
+      function ensureObject(value, fieldName) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+          throw new Error(`${fieldName} 必须是对象。`);
+        }
+      }
+
+      function ensureArray(value, fieldName) {
+        if (!Array.isArray(value)) {
+          throw new Error(`${fieldName} 必须是数组。`);
+        }
+      }
+
+      function normalizeOptions(options, nodeId) {
+        ensureArray(options, `${nodeId}.options`);
+        return options.map((option, index) => {
+          ensureObject(option, `${nodeId}.options[${index}]`);
+          if (!option.key || !option.label || !option.next) {
+            throw new Error(`${nodeId}.options[${index}] 缺少 key / label / next。`);
+          }
+          return {
+            key: String(option.key),
+            label: String(option.label),
+            next: String(option.next),
+            note: option.note ? String(option.note) : "",
+            effect: option.effect && typeof option.effect === "object"
+              ? {
+                  fit: Number(option.effect.fit || 0),
+                  stress: Number(option.effect.stress || 0),
+                  growth: Number(option.effect.growth || 0)
+                }
+              : { fit: 0, stress: 0, growth: 0 }
+          };
+        });
+      }
+
+      function normalizeNode(node, nodeId) {
+        ensureObject(node, `story.${nodeId}`);
+        ensureArray(node.paragraphs, `story.${nodeId}.paragraphs`);
+        const normalized = {
+          tag: node.tag ? String(node.tag) : "节点",
+          title: node.title ? String(node.title) : nodeId,
+          paragraphs: node.paragraphs.map((item) => String(item)),
+          options: normalizeOptions(node.options || [], `story.${nodeId}`)
+        };
+        if (node.subtitle) normalized.subtitle = String(node.subtitle);
+        if (node.prompt) normalized.prompt = String(node.prompt);
+        if (node.materials) {
+          ensureArray(node.materials, `story.${nodeId}.materials`);
+          normalized.materials = node.materials.map((item) => String(item));
+        }
+        return normalized;
+      }
+
+      function validateEnding(ending, key) {
+        ensureObject(ending, `endings.${key}`);
+        ensureArray(ending.paragraphs, `endings.${key}.paragraphs`);
+        if (!ending.title || !ending.matchLabel || !ending.reason) {
+          throw new Error(`endings.${key} 缺少 title / matchLabel / reason。`);
+        }
+        return {
+          title: String(ending.title),
+          paragraphs: ending.paragraphs.map((item) => String(item)),
+          matchLabel: String(ending.matchLabel),
+          reason: String(ending.reason)
+        };
+      }
+
+      function validateScriptGraph(script) {
+        const storyKeys = new Set(Object.keys(script.story));
+        storyKeys.add("__ENDING__");
+        Object.entries(script.story).forEach(([nodeId, node]) => {
+          node.options.forEach((option, index) => {
+            if (!storyKeys.has(option.next)) {
+              throw new Error(`story.${nodeId}.options[${index}].next 指向了不存在的节点：${option.next}`);
+            }
+          });
+        });
+      }
+
+      function scoreLegacyOutcome(text) {
+        const outcome = String(text || "");
+        let fit = 0;
+        let stress = 0;
+        let growth = 0;
+
+        if (/(认可|肯定|采纳|成就感|效率提升|专业|全面|清晰|和谐|响应率高|完成任务|提升)/.test(outcome)) {
+          fit += 2;
+          growth += 1;
+        }
+        if (/(返工|压力|争议|耗时|枯燥|紧张|欠缺|遗漏|漏洞|较累|风险较高)/.test(outcome)) {
+          stress += 2;
+          fit -= 1;
+        }
+        if (/(快速|高效率|顺利|准确|合理|采纳|认可|完成)/.test(outcome)) {
+          growth += 1;
+        }
+
+        return { fit, stress, growth };
+      }
+
+      function transformLegacySimulation(parsed) {
+        ensureObject(parsed.role, "role");
+        ensureObject(parsed.user_profile, "user_profile");
+        ensureArray(parsed.simulation_flow, "simulation_flow");
+
+        const roleName = String(parsed.role.name || "未命名岗位");
+        const company = parsed.role.company && typeof parsed.role.company === "object" ? parsed.role.company : {};
+        const tasks = Array.isArray(parsed.role.tasks) ? parsed.role.tasks.map((item) => String(item)) : [];
+        const userProfile = parsed.user_profile || {};
+
+        const story = {
+          intro: {
+            tag: "背景导入",
+            title: `${roleName} 的职业旅程入口`,
+            subtitle: "这份脚本来自兼容格式转换，会按线性节点进入模拟。",
+            paragraphs: [
+              `你要进入的岗位是“${roleName}”。它所在的行业是“${String(company.industry || "未说明")}”，公司规模大约是“${String(company.size || "未说明")}”。`,
+              tasks.length > 0
+                ? `这份工作里，你最常碰到的事情包括：${tasks.join("；")}。`
+                : "这份工作的日常任务还没有被写得特别细，但你会从后面的节点里逐步看到它的节奏。",
+              userProfile.reward_source || userProfile.drain_source
+                ? `从你留下来的画像线索里，小可会特别留意你更容易被什么打动、又会被什么慢慢消耗。`
+                : "如果你还没有补完整画像，也没关系，这段旅程会先按较中性的方式带你往里走。"
+            ],
+            options: [
+              {
+                key: "start",
+                label: "进入这段职业模拟",
+                next: parsed.simulation_flow.length > 0 ? "node1" : "__ENDING__",
+                effect: { fit: 0, stress: 0, growth: 0 }
+              }
+            ]
+          }
+        };
+
+        parsed.simulation_flow.forEach((step, index) => {
+          ensureObject(step, `simulation_flow[${index}]`);
+          ensureArray(step.options, `simulation_flow[${index}].options`);
+          const nodeId = `node${index + 1}`;
+          const nextId = index === parsed.simulation_flow.length - 1 ? "__ENDING__" : `node${index + 2}`;
+
+          story[nodeId] = {
+            tag: `节点 ${index + 1}`,
+            title: String(step.scenario || `场景 ${index + 1}`),
+            paragraphs: [
+              String(step.description || "这里会发生一个与岗位日常相关的小场景。")
+            ],
+            prompt: "这时你会怎么做？",
+            options: step.options.map((option, optionIndex) => {
+              ensureObject(option, `simulation_flow[${index}].options[${optionIndex}]`);
+              const effect = scoreLegacyOutcome(option.outcome);
+              return {
+                key: String(option.option_id || String.fromCharCode(65 + optionIndex)),
+                label: String(option.text || `选项 ${optionIndex + 1}`),
+                next: nextId,
+                note: String(option.outcome || ""),
+                effect
+              };
+            })
+          };
+        });
+
+        const rewardText = String(userProfile.reward_source || "");
+        const drainText = String(userProfile.drain_source || "");
+
+        return {
+          meta: {
+            eyebrow: "CAREER SIMULATOR / LEGACY JSON",
+            title: `${String(parsed.simulation_title || roleName)}<br />兼容脚本`,
+            plainTitle: String(parsed.simulation_title || roleName),
+            description: "这是从兼容格式自动转换出来的职业旅程脚本。你可以直接试玩，但如果后续要长期使用，建议仍然输出标准故事脚本 JSON。",
+            settings: [
+              { label: "岗位", value: roleName },
+              { label: "行业", value: String(company.industry || "未说明") },
+              { label: "公司规模", value: String(company.size || "未说明") },
+              { label: "主要成就来源", value: rewardText || "未填写" },
+              { label: "主要消耗来源", value: drainText || "未填写" }
+            ]
+          },
+          story,
+          endings: {
+            high: {
+              title: "结局一：越做越顺",
+              paragraphs: [
+                "你在这段旅程里更容易抓住任务的推进点，也更容易从一次次具体产出里建立手感。",
+                "如果真实工作里也能保持这样的节奏，这份岗位更可能带给你稳定的推进感和成就反馈。"
+              ],
+              matchLabel: "偏高",
+              reason: rewardText || "你的选择整体更偏向主动推进、接住任务与形成产出，这和岗位要求的日常节奏比较贴近。"
+            },
+            mid: {
+              title: "结局二：能跟上，但会有消耗",
+              paragraphs: [
+                "你大概率能把事情做完，也能在关键节点给出回应，但过程中会持续消耗心力。",
+                "这类岗位对你来说更像“能做，也能学到东西”，只是长期体验未必轻松。"
+              ],
+              matchLabel: "中等",
+              reason: drainText || "你的选择一边在推进事情，一边也暴露出对压力、返工或不确定性的额外消耗。"
+            },
+            low: {
+              title: "结局三：推进得动，但拉扯感明显",
+              paragraphs: [
+                "你并不是完全做不了这份工作，但它的日常节奏、处理方式或反馈机制，可能不会持续给你正向能量。",
+                "如果核心工作形态本身就比较消耗，后面就算适应了，也未必会过得很轻松。"
+              ],
+              matchLabel: "有明显拉扯",
+              reason: drainText || "这份岗位里更高频的工作形态，和你的自然反应之间有比较明显的拧巴感。"
+            }
+          }
+        };
+      }
+
+      function parseStoryScript(rawText) {
+        const text = rawText.trim();
+        if (!text) {
+          throw new Error("JSON 内容为空。");
+        }
+
+        let parsed;
+        try {
+          parsed = JSON.parse(text);
+        } catch (error) {
+          throw new Error(`JSON 解析失败：${error.message}`);
+        }
+
+        ensureObject(parsed, "根对象");
+
+        if (parsed.simulation_flow && parsed.role) {
+          const legacyScript = transformLegacySimulation(parsed);
+          validateScriptGraph(legacyScript);
+          return legacyScript;
+        }
+
+        if ((!parsed.meta || !parsed.story || !parsed.endings) && parsed.job_input) {
+          throw new Error("你上传的是输入 JSON，不是可游玩的故事脚本。先把它交给小可生成故事脚本，再上传到这里。");
+        }
+
+        ensureObject(parsed.meta, "meta");
+        ensureObject(parsed.story, "story");
+        ensureObject(parsed.endings, "endings");
+
+        if (!parsed.story.intro) {
+          throw new Error("story.intro 缺失。");
+        }
+        if (!parsed.endings.high || !parsed.endings.mid || !parsed.endings.low) {
+          throw new Error("endings 必须包含 high / mid / low 三档。");
+        }
+
+        const normalizedStory = {};
+        Object.entries(parsed.story).forEach(([nodeId, node]) => {
+          normalizedStory[nodeId] = normalizeNode(node, nodeId);
+        });
+
+        const script = {
+          meta: {
+            eyebrow: parsed.meta.eyebrow ? String(parsed.meta.eyebrow) : "CAREER SIMULATOR / STORY",
+            title: parsed.meta.title ? String(parsed.meta.title) : "职业旅程",
+            plainTitle: parsed.meta.plainTitle
+              ? String(parsed.meta.plainTitle)
+              : String(parsed.meta.title || "职业旅程").replace(/<br\s*\/?>/gi, " "),
+            description: parsed.meta.description ? String(parsed.meta.description) : "这是导入后的职业旅程脚本。",
+            settings: Array.isArray(parsed.meta.settings)
+              ? parsed.meta.settings.map((item, index) => {
+                  ensureObject(item, `meta.settings[${index}]`);
+                  return {
+                    label: String(item.label || `字段 ${index + 1}`),
+                    value: String(item.value || "")
+                  };
+                })
+              : []
+          },
+          story: normalizedStory,
+          endings: {
+            high: validateEnding(parsed.endings.high, "high"),
+            mid: validateEnding(parsed.endings.mid, "mid"),
+            low: validateEnding(parsed.endings.low, "low")
+          }
+        };
+
+        validateScriptGraph(script);
+        return script;
+      }
+
+      function getSimNode(nodeId) {
+        return state.activeScript ? state.activeScript.story[nodeId] : null;
+      }
+
+      function getSimChoiceLabel(nodeId, key) {
+        const node = getSimNode(nodeId);
+        if (!node || !node.options) return "";
+        const option = node.options.find((item) => item.key === key);
+        return option ? option.label : "";
+      }
+
+      function resetSimulationState() {
+        state.simCurrentId = "intro";
+        state.simHistory = [];
+        state.simChoices = {};
+        state.simScore = { fit: 0, stress: 0, growth: 0 };
+      }
+
+      function loadStoryScript(script, message = "故事脚本载入成功，可以开始模拟了。") {
+        state.activeScript = script;
+        resetSimulationState();
+        setScriptStatus(message, false);
+      }
+
+      function applySimEffect(effect = {}) {
+        state.simScore.fit += effect.fit || 0;
+        state.simScore.stress += effect.stress || 0;
+        state.simScore.growth += effect.growth || 0;
+      }
+
+      function getSimProgressTotal() {
+        if (!state.activeScript) return 0;
+        let currentId = "intro";
+        let count = 0;
+        let guard = 0;
+        const seen = new Set();
+        while (currentId && currentId !== "__ENDING__" && guard < 80) {
+          const node = getSimNode(currentId);
+          if (!node || !Array.isArray(node.options) || node.options.length === 0) break;
+          if (currentId !== "intro") count += 1;
+          if (seen.has(currentId)) break;
+          seen.add(currentId);
+          currentId = node.options[0].next;
+          guard += 1;
+        }
+        return Math.max(count, 1);
+      }
+
+      function getSimProgressCount() {
+        const offset = state.simHistory.length > 0 && state.simHistory[0].nodeId === "intro" ? 1 : 0;
+        return Math.min(Math.max(state.simHistory.length - offset, 0), getSimProgressTotal());
+      }
+
+      function getDynamicSignals() {
+        const action = state.simChoices.taskAction
+          ? getSimChoiceLabel("taskAction", state.simChoices.taskAction)
+          : "还没有进入典型任务试做";
+        const emotion = state.simChoices.taskEmotion
+          ? getSimChoiceLabel("taskEmotion", state.simChoices.taskEmotion)
+          : "尚未记录";
+        const difficulty = state.simChoices.taskDifficulty
+          ? getSimChoiceLabel("taskDifficulty", state.simChoices.taskDifficulty)
+          : "尚未记录";
+        return { action, emotion, difficulty };
+      }
+
+      function getEndingBucket() {
+        const fit = state.simScore.fit;
+        if (fit >= 9) return "high";
+        if (fit >= 3) return "mid";
+        return "low";
+      }
+
+      function buildEnding() {
+        const { action, emotion, difficulty } = getDynamicSignals();
+        const bucket = getEndingBucket();
+        const endingBase = state.activeScript.endings[bucket];
+        return {
+          tag: "结局",
+          title: endingBase.title,
+          paragraphs: endingBase.paragraphs,
+          recap: `在典型任务试做里，你选择了“${action}”，当下更像“${emotion}”，主观难度是“${difficulty}”。这组信号会直接影响你对这份岗位核心日常的体感。`,
+          matchLabel: endingBase.matchLabel,
+          reason: endingBase.reason
+        };
+      }
+
+      function renderSimMeta() {
+        simEyebrow.textContent = state.activeScript.meta.eyebrow || "SIMULATION";
+        simTitle.innerHTML = state.activeScript.meta.title || "职业旅程";
+        simDescription.textContent = state.activeScript.meta.description || "";
+        simMeta.innerHTML = (state.activeScript.meta.settings || [])
+          .map(
+            (item) => `
+              <div class="meta-item">
+                <strong>${escapeHtml(item.label)}</strong>
+                ${escapeHtml(item.value)}
+              </div>
+            `
+          )
+          .join("");
+      }
+
+      function renderSimScene(node, mode, pickedLabel = "") {
+        const paragraphs = node.paragraphs
+          .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
+          .join("");
+
+        const materials = Array.isArray(node.materials)
+          ? `
+            <div class="sim-materials">
+              <strong>给你的原始材料</strong>
+              <div class="sim-materials-list">
+                ${node.materials.map((item) => `<div>${escapeHtml(item)}</div>`).join("")}
+              </div>
+            </div>
+          `
+          : "";
+
+        const picked = pickedLabel
+          ? `<div class="sim-picked"><strong>你的选择</strong><br />${escapeHtml(pickedLabel)}</div>`
+          : "";
+
+        const options = mode === "active"
+          ? `
+            ${node.prompt ? `<div class="sim-subtitle">${escapeHtml(node.prompt)}</div>` : ""}
+            <div class="sim-options">
+              ${node.options
+                .map(
+                  (option) => `
+                    <button class="sim-option" type="button" data-key="${escapeHtml(option.key)}">
+                      <span class="sim-option-code">${escapeHtml(option.key)}</span>${escapeHtml(option.label)}
+                    </button>
+                  `
+                )
+                .join("")}
+            </div>
+          `
+          : picked;
+
+        return `
+          <article class="sim-scene ${mode}">
+            <div class="sim-scene-tag">${escapeHtml(node.tag)}</div>
+            <h2>${escapeHtml(node.title)}</h2>
+            ${node.subtitle ? `<div class="sim-subtitle">${escapeHtml(node.subtitle)}</div>` : ""}
+            ${paragraphs}
+            ${materials}
+            ${options}
+          </article>
+        `;
+      }
+
+      function renderSimEnding() {
+        const ending = buildEnding();
+        return `
+          <article class="sim-scene ending">
+            <div class="sim-scene-tag">${escapeHtml(ending.tag)}</div>
+            <h2>${escapeHtml(ending.title)}</h2>
+            ${ending.paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("")}
+            <div class="sim-picked">${escapeHtml(ending.recap)}</div>
+            <div class="sim-ending">
+              <div><strong>匹配感：</strong>${escapeHtml(ending.matchLabel)}</div>
+              <div style="margin-top: 8px;"><strong>原因：</strong>${escapeHtml(ending.reason)}</div>
+            </div>
+          </article>
+        `;
+      }
+
+      function renderSimHistory() {
+        if (state.simHistory.length === 0) {
+          simHistory.innerHTML = `
+            <div class="sim-history-item">
+              <strong>还没开始</strong>
+              载入脚本后，点击选项就会在这里记录你的路径。
+            </div>
+          `;
+          return;
+        }
+
+        simHistory.innerHTML = state.simHistory
+          .map((item) => {
+            const node = getSimNode(item.nodeId);
+            return `
+              <div class="sim-history-item">
+                <strong>${escapeHtml(node.title)}</strong>
+                ${escapeHtml(getSimChoiceLabel(item.nodeId, item.optionKey))}
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      function renderSimulation() {
+        if (!state.activeScript) return;
+        renderSimMeta();
+        renderSimHistory();
+
+        const progress = getSimProgressCount();
+        const progressTotal = getSimProgressTotal();
+        simProgressText.textContent = `${progress} / ${progressTotal}`;
+        simProgressFill.style.width = `${progressTotal ? (progress / progressTotal) * 100 : 0}%`;
+
+        const historyMarkup = state.simHistory
+          .map((item) => renderSimScene(getSimNode(item.nodeId), "past", getSimChoiceLabel(item.nodeId, item.optionKey)))
+          .join("");
+
+        const activeMarkup = state.simCurrentId === "__ENDING__"
+          ? renderSimEnding()
+          : renderSimScene(getSimNode(state.simCurrentId), "active");
+
+        simRoot.innerHTML = historyMarkup + activeMarkup;
+
+        simRoot.querySelectorAll(".sim-option").forEach((button) => {
+          button.addEventListener("click", () => {
+            const key = button.getAttribute("data-key");
+            handleSimChoice(key);
+          });
+        });
+      }
+
+      function handleSimChoice(key) {
+        const node = getSimNode(state.simCurrentId);
+        const option = node.options.find((item) => item.key === key);
+        if (!option) return;
+
+        state.simHistory.push({ nodeId: state.simCurrentId, optionKey: key });
+        state.simChoices[state.simCurrentId] = key;
+        applySimEffect(option.effect);
+        state.simCurrentId = option.next;
+        renderSimulation();
+      }
+
+      function startSimulation() {
+        if (!state.activeScript) {
+          setScriptStatus("还没有载入可游玩的故事脚本。", true);
+          return;
+        }
+        resetSimulationState();
+        renderSimulation();
+        showScreen("simulator");
+      }
+
+      startGameBtn.addEventListener("click", () => {
+        showScreen("intro");
+      });
+
+      startSimBtn.addEventListener("click", () => {
+        const entries = loadHistory();
+        if (entries.length === 0) {
+          setHomeStatus("还没有可直接使用的岗位信息。先点“开始游戏”完成一轮收集吧。", true);
+          return;
+        }
+
+        loadHistoryEntry(entries[0]);
+        setHomeStatus("已为你打开最近一次保存的岗位信息，你可以继续上传故事脚本开始模拟。", false);
+      });
+
+      beginProfileBtn.addEventListener("click", () => {
+        startFlow(true);
+      });
+
+      beginProfileQuestionsBtn.addEventListener("click", () => {
+        state.currentStepIndex = jobQuestions.length;
+        showScreen("journey");
+        renderStep();
+      });
+
+      skipProfileAfterJobBtn.addEventListener("click", () => {
+        state.includeProfile = false;
+        finalizeFlow();
+      });
+
+      prevStepBtn.addEventListener("click", () => {
+        if (state.currentStepIndex === 0) return;
+        persistCurrentAnswer();
+        state.currentStepIndex -= 1;
+        renderStep();
+      });
+
+      nextStepBtn.addEventListener("click", () => {
+        persistCurrentAnswer();
+        if (
+          state.includeProfile &&
+          state.currentStepIndex === jobQuestions.length - 1 &&
+          !state.jobCompleted
+        ) {
+          showProfileTransition();
+          return;
+        }
+        if (state.currentStepIndex === state.steps.length - 1) {
+          finalizeFlow();
+          return;
+        }
+        state.currentStepIndex += 1;
+        renderStep();
+      });
+
+      downloadJsonBtn.addEventListener("click", () => {
+        if (!state.currentPayload) {
+          setResultStatus("还没有可下载的 JSON。", true);
+          return;
+        }
+        downloadPayload(state.currentPayload);
+        setResultStatus("JSON 已下载。下一步把它交给小可，就可以继续生成职业旅程脚本啦。", false);
+      });
+
+      copyJsonBtn.addEventListener("click", async () => {
+        if (!state.currentPayload) {
+          setResultStatus("还没有可复制的 JSON。", true);
+          return;
+        }
+        try {
+          await copyText(JSON.stringify(state.currentPayload, null, 2));
+          setResultStatus("JSON 已复制到剪贴板。", false);
+        } catch (error) {
+          setResultStatus(`复制失败：${error.message}`, true);
+        }
+      });
+
+      restartFlowBtn.addEventListener("click", () => {
+        showScreen("intro");
+      });
+
+      resultHomeBtn.addEventListener("click", () => {
+        showScreen("home");
+      });
+
+      loadScriptBtn.addEventListener("click", () => {
+        const text = scriptInput.value.trim();
+        if (!text) {
+          setScriptStatus("还没有检测到脚本内容。先粘贴故事脚本 JSON，或者上传脚本文件。", true);
+          return;
+        }
+
+        try {
+          const script = parseStoryScript(text);
+          loadStoryScript(script);
+          startSimulation();
+        } catch (error) {
+          setScriptStatus(`载入失败：${error.message}`, true);
+        }
+      });
+
+      scriptFile.addEventListener("change", async (event) => {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+
+        try {
+          const text = await file.text();
+          scriptInput.value = text;
+          const script = parseStoryScript(text);
+          loadStoryScript(script, "故事脚本上传成功，正在进入模拟。");
+          startSimulation();
+        } catch (error) {
+          setScriptStatus(`文件读取失败：${error.message}`, true);
+        } finally {
+          scriptFile.value = "";
+        }
+      });
+
+      simRestartBtn.addEventListener("click", () => {
+        if (!state.activeScript) return;
+        resetSimulationState();
+        renderSimulation();
+      });
+
+      simBackBtn.addEventListener("click", () => {
+        showScreen("result");
+      });
+
+      renderHistory();
+    </script>
+  </body>
+</html>
