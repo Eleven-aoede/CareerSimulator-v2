@@ -2,54 +2,48 @@
 
 ## 后端
 
-- Python 3.10
-- Flask
-- Flask-CORS
-- OpenAI Python SDK
-- httpx
-- filelock
-
-选择原因：
-
-- Flask 足够轻量，适合当前少量 API + 静态前端托管
-- OpenAI SDK 可直接对接 xi-ai.cn 的 OpenAI 兼容接口
-- filelock 能在文件持久化方案下避免并发读写冲突
+- Python 3.10+
+- Flask（轻量 Web 框架 + 静态文件托管）
+- Flask-CORS（跨域支持）
+- OpenAI Python SDK（对接 LLM 兼容接口）
+- filelock（文件级并发控制）
 
 ## 前端
 
-- 原生 HTML / CSS / JavaScript
-- Fetch API
-- ReadableStream + SSE 文本解析
+- 原生 HTML / CSS / JavaScript（无框架）
+- Fetch API + ReadableStream（SSE 流式接收）
+- 单文件状态管理 + DOM 操作
 
-选择原因：
+## AI / LLM
 
-- handoff 明确要求前端以 HTML 形式实现
-- 当前交互集中在流式聊天和少量状态管理，用原生 JS 即可完成
-- 无需引入构建工具，直接由 Flask 提供静态文件
+- **Prompt Engineering**：多阶段 System Prompt 设计（岗位收集 / 画像采集 / 剧情生成）
+- **标签协议**：`<extraction>` 触发结构化数据提取与阶段转换，`<options>` 动态生成选项
+- **Agent 架构**：角色抽象 + 注册中心，支持多角色扩展
+- **流式 JSON 增量解析**：自研状态机（stream_extractor.py），在 LLM 逐 token 输出 JSON 过程中实时提取可渲染字段
 
 ## 数据存储
 
-- JSON 文件
-
-目录结构：
-
-- `state.json`：完整用户状态
-- `history.json`：用户行为记录
-- `llm_log.json`：模型输入输出日志
-- `system_log.json`：系统事件日志
-
-选择原因：
-
-- 需求明确不使用数据库
-- 单用户、低并发场景下更易调试与交接
+- JSON 文件（无数据库依赖）
+- 目录结构：`data/users/<username>/`
+  - `state.json`：完整用户状态
+  - `history.json`：用户行为记录
+  - `llm_log.json`：模型输入输出日志
 
 ## 模型接入
 
-- 服务提供方：xi-ai.cn
 - 接口模式：OpenAI Compatible API
+- 支持的提供商：DeepSeek、xi-ai.cn
 - 默认模型：`deepseek-v4-pro`
+- 配置方式：环境变量（API Key） + config.yaml（模型参数）
 
-## 部署形态
+## 实时通信
 
-- 本地开发：`python backend/app.py`
-- 生产入口可继续沿用 WSGI/`gunicorn`，依赖已在 `backend/requirements.txt` 中声明
+- Server-Sent Events (SSE)
+- 后端 Flask Generator → `text/event-stream`
+- 前端 `response.body.getReader()` 逐块读取解析
+- 事件驱动：`token` / `options` / `done` / `stream_title` / `stream_token` / `complete` / `ending`
+
+## 部署
+
+- 开发环境：Flask 内置服务器（`python app.py`）
+- 生产建议：gunicorn + gevent（解决 SSE 连接管理问题）

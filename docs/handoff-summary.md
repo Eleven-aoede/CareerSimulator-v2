@@ -1,6 +1,6 @@
 # 项目交接文档 - IFI Career Simulator v2
 
-> 更新时间: 2026-05-16
+> 更新时间: 2025-05-16
 
 ---
 
@@ -12,13 +12,16 @@
 |------|------|
 | Flask 后端 + API 路由 | ✅ |
 | 信息收集阶段（SSE 流式对话） | ✅ |
+| 动态选项系统（`<options>` 标签） | ✅ |
 | 逐节点剧情生成引擎 | ✅ |
 | 前端单页应用 | ✅ |
 | 流式内容展示（打字机效果） | ✅ |
-| 小可跳动加载动画 | ✅ |
+| 小可头像 + 跳动加载动画 | ✅ |
 | 用户断点续玩 | ✅ |
 | 文件持久化 | ✅ |
-| Agent 多角色扩展 | ⬜ 预留接口，未实现 |
+| 前端防闪烁 / 防阶段回退 | ✅ |
+| Agent 多角色扩展 | ⬜ 预留接口，未实现多角色 |
+| 管理员后台 | ⬜ 计划中 |
 
 ---
 
@@ -31,15 +34,19 @@ Flask 后端 (backend/app.py)
     ├── routes/user.py      用户创建/恢复/重置
     ├── routes/chat.py      信息收集阶段对话
     ├── routes/story.py     剧情节点生成（SSE 流式）
+    ├── agents/
+    │   ├── base.py             Agent 抽象基类
+    │   ├── xiaoke.py           小可角色（system prompt 构建）
+    │   └── registry.py         Agent 注册中心
     ├── services/
-    │   ├── conversation.py     对话逻辑 + 阶段转换
+    │   ├── conversation.py     对话逻辑 + 标签解析 + 阶段转换
     │   ├── story_engine.py     剧情引擎（meta/节点/结局）
     │   ├── llm_client.py       OpenAI SDK 封装
     │   ├── prompt_engine.py    Prompt 组装
     │   └── persistence.py      文件读写 + FileLock
     └── utils/
         ├── stream_extractor.py   流式 JSON 增量解析器
-        └── json_extractor.py     完整 JSON 提取
+        └── json_extractor.py     标签内容提取
 ```
 
 ### 数据流
@@ -60,118 +67,107 @@ intro → node1 → node2 → node3 → taskAction → taskEmotion → taskDiffi
 
 ---
 
-## 三、流式展示实现
+## 三、对话阶段标签协议
 
-### 核心机制
+### 标签说明
 
-`stream_extractor.py` 实现了增量 JSON 解析的状态机，在 LLM 逐 token 输出 JSON 的过程中，实时提取可展示的内容：
+| 标签 | 触发场景 | 后端处理 | 前端行为 |
+|------|----------|----------|----------|
+| `<extraction>{JSON}</extraction>` | LLM 判断信息收集完成 | 提取 JSON、推进 phase、存储数据 | 不显示，触发阶段切换动画 |
+| `<options>["A", "B"]</options>` | 每轮回复末尾 | 解析选项、保留在历史中 | 渲染为可点击选项按钮 |
 
-1. **标题提取**：正则匹配 `"title": "..."` 完整闭合后 yield `stream_title` 事件
-2. **段落流式**：定位 `"paragraphs": [` 后，逐字符追踪字符串边界，每个字符 yield `stream_token` 事件
-3. **状态机状态**：SEARCHING → OUTSIDE_STRING → IN_STRING → ESCAPE
+### 流式解析策略
 
-### SSE 事件类型
+streaming 过程中实时检测标签前缀，避免将标签内容作为可见文本发送给前端：
+- 检测到 `<extraction>` → 停止 token 输出，标记阶段完成
+- 检测到 `<options>` → 停止 token 输出，等待流结束后解析选项
+- 后备机制：如果 `<options>` 出现在 `<extraction>` 之前阻断了流内检测，流结束后从完整文本中补充提取
 
-| 事件 | 触发时机 |
-|------|----------|
-| `progress` | 开始生成，显示提示文字 |
-| `stream_meta` | meta+intro 模式下，meta 信息就绪 |
-| `stream_title` | 节点标题完整提取 |
-| `stream_token` | 段落内容逐字符 |
+---
+
+## 四、前端关键机制
+
+### SSE 事件类型（对话阶段）
+
+| 事件 | 内容 |
+|------|------|
+| `token` | 逐字符文本内容 |
+| `options` | 选项按钮数据 `["选项A", "选项B"]` |
+| `done` | 回合结束 `{phase, phase_complete, transition_text}` |
+
+### SSE 事件类型（剧情阶段）
+
+| 事件 | 内容 |
+|------|------|
+| `progress` | 开始生成提示 |
+| `stream_meta` | meta 信息就绪 |
+| `stream_title` | 节点标题 |
+| `stream_token` | 段落逐字符 |
 | `stream_done` | 流式预览结束 |
-| `complete` | JSON 验证通过，权威数据 |
-| `ending` | 结局生成完成 |
+| `complete` | 完整节点 JSON |
+| `ending` | 结局 JSON |
 | `error` | 生成失败 |
 
-### 前端处理
+### 防闪烁 / 防竞态
 
-- `showStreamingCard()` — 注入带小可跳动动画的流式卡片
-- `updateStreamingCardTitle(title)` — 显示标题
-- `appendStreamingToken(index, content)` — 逐字追加段落内容
-- `hideStreamingMascot()` — stream_done 时淡出小可
-- `complete`/`ending` 事件到达时，用完整数据替换流式卡片
-
----
-
-## 四、⚠️ 已知问题：SSE 连接阻塞 Bug
-
-**这是当前最大的未修复问题。**
-
-### 现象
-
-在剧情模拟阶段（有时也出现在对话阶段），连续交互 2-3 轮后，发送按钮变为不可点击状态。具体表现：
-
-- 前端 `streamJsonEvents` 中的 `reader.read()` 挂起，永远不返回 `done: true`
-- 后续的 `refreshState()` GET 请求无法发出
-- 按钮的 `disabled` 状态无法恢复
-
-### 根本原因
-
-Flask（werkzeug）开发服务器在 SSE 生成器 return 后，不一定能及时关闭 HTTP 连接。前端依赖 `reader.read()` 返回 `{done: true}` 来判断流结束，但服务器端连接未关闭时这个信号永远不会到达。
-
-### 已实施的缓解措施
-
-1. **事件处理器返回 `true` 信号终止**：`handleChatEvent` 在收到 `done` 事件时返回 `true`，`handleStoryEvent` 在收到 `complete`/`ending` 时返回 `true`，`streamJsonEvents` 检测到 truthy 返回值后 break 循环
-2. **非阻塞 refreshState**：`refreshState().catch(() => {})` 放在 `finally` 块之后而非内部，避免被挂起的 reader 阻塞
-3. **移除 reader.cancel()**：曾尝试在 break 后调用 `reader.cancel()`，但这会导致 Flask 收到 BrokenPipeError，阻塞后续请求的处理
-
-### 为什么问题仍然存在
-
-`return true` 机制依赖前端能正确接收和解析到终止事件（`done`/`complete`/`ending`）。在以下场景中会失败：
-
-- SSE 数据块跨越 chunk 边界，终止事件的 JSON 被拆分到两个 chunk 中时解析失败
-- Flask 输出缓冲导致终止事件没有被立即 flush
-- LLM 响应异常导致后端未 yield 终止事件
-
-### 建议修复方向
-
-1. **替换 Flask 开发服务器**：使用 gunicorn + gevent 或其他异步方案，确保 SSE 连接在生成器结束后立即关闭
-2. **前端超时兜底**：在 `reader.read()` 外包一层 `Promise.race` 超时（如 30s），超时后强制结束循环
-3. **改用 EventSource API 或第三方 SSE 库**：标准 `EventSource` 对连接生命周期管理更可靠，但不支持 POST
-4. **心跳机制**：后端定期发送 `ping` 事件，前端检测心跳超时则主动断开
+| 机制 | 说明 |
+|------|------|
+| 阶段防回退 | `hydrateState()` 比较 PHASE_META 索引，仅允许前进 |
+| streaming 跳过刷新 | `refreshState()` 在 streaming 期间不执行 |
+| DOM 防重建 | 对话历史未变化时跳过 `rebuildChatStream()` |
+| 故事面板防重绘 | `renderStoryPanel()` 在 streaming 期间 return |
 
 ---
 
-## 五、文件清单
+## 五、Prompt 模板
 
-### 后端核心
+| 文件 | 阶段 | 功能 |
+|------|------|------|
+| `xiaoke_base.md` | 全局 | 小可角色人设定义 |
+| `phase_job.md` | 岗位收集 | 收集 4 个字段，信息完整时输出 `<extraction>` |
+| `phase_profile.md` | 画像采集 | 覆盖 9 个行为维度，确认后输出 `<extraction>` |
+| `phase_story.md` | 剧情对话 | 剧情阶段的对话引导 |
+| `story_meta.md` | 剧情生成 | 生成 meta + intro 节点 |
+| `story_node.md` | 剧情生成 | 生成单个剧情节点 |
+| `story_ending.md` | 剧情生成 | 生成结局 |
+| `references/story-node-format.md` | 参考 | 节点 JSON 格式规范 |
+| `references/option-generation.md` | 参考 | 选项生成规则 |
+
+---
+
+## 六、文件清单
+
+### 后端
 
 | 文件 | 职责 |
 |------|------|
-| `backend/app.py` | Flask 应用入口，注册蓝图，托管前端静态文件 |
-| `backend/config.py` | 配置加载（config.yaml + CLI 参数 + 环境变量） |
-| `backend/config.yaml` | 默认配置（模型、参数、端口等） |
-| `backend/models/user_state.py` | UserState / StoryState 数据类 + Phase 枚举 |
-| `backend/services/story_engine.py` | 剧情引擎：生成 meta+intro / 节点 / 结局 |
-| `backend/services/conversation.py` | 信息收集对话逻辑 + 阶段转换判断 |
-| `backend/services/llm_client.py` | OpenAI SDK 封装（流式 + 非流式 + 日志记录） |
-| `backend/services/prompt_engine.py` | 构建各阶段的 system prompt + messages |
-| `backend/services/persistence.py` | 文件持久化（state/history/llm_log/system_log） |
-| `backend/utils/stream_extractor.py` | 流式 JSON 增量解析状态机 |
-| `backend/utils/json_extractor.py` | 从 LLM 响应提取完整 JSON |
-
-### Prompt 模板
-
-| 文件 | 用途 |
-|------|------|
-| `backend/prompts/story_meta.md` | 生成 meta + intro 节点 |
-| `backend/prompts/story_node.md` | 生成单个剧情节点 |
-| `backend/prompts/story_ending.md` | 生成结局 |
-| `backend/prompts/xiaoke_base.md` | 小可角色定义 |
-| `backend/prompts/phase_job.md` | 岗位信息收集 |
-| `backend/prompts/phase_profile.md` | 画像收集 |
+| `app.py` | Flask 应用入口，注册蓝图，托管前端静态文件 |
+| `config.py` | 配置加载（config.yaml + CLI 参数 + 环境变量） |
+| `config.yaml` | 默认配置（模型、参数、端口等） |
+| `models/user_state.py` | UserState / StoryState 数据类 + Phase 枚举 |
+| `agents/base.py` | Agent 抽象基类 |
+| `agents/xiaoke.py` | 小可角色（根据 phase 构建 system prompt） |
+| `agents/registry.py` | Agent 注册中心 |
+| `services/conversation.py` | 对话流处理 + 标签解析 + 阶段转换 |
+| `services/story_engine.py` | 剧情引擎（meta/节点/结局生成） |
+| `services/llm_client.py` | OpenAI SDK 封装（流式 + 非流式 + 日志） |
+| `services/prompt_engine.py` | 构建各阶段的 messages 列表 |
+| `services/persistence.py` | 文件持久化（state/history/llm_log） |
+| `utils/stream_extractor.py` | 流式 JSON 增量解析状态机 |
+| `utils/json_extractor.py` | 从完整文本提取标签内 JSON |
+| `utils/logger.py` | 日志工具 |
 
 ### 前端
 
 | 文件 | 职责 |
 |------|------|
-| `frontend/index.html` | 页面结构 |
-| `frontend/styles.css` | 样式（含流式卡片 + 小可跳动动画） |
-| `frontend/app.js` | 全部前端逻辑（状态管理、渲染、SSE 处理） |
+| `index.html` | 页面结构 |
+| `styles.css` | 样式（含小可动画、选项按钮、流式卡片） |
+| `app.js` | 全部前端逻辑（状态管理、渲染、SSE 处理、选项交互） |
 
 ---
 
-## 六、开发环境
+## 七、开发环境
 
 ```bash
 conda env create -f environment.yml
@@ -191,9 +187,22 @@ python app.py --provider xi --model deepseek-v4-pro
 
 ---
 
-## 七、扩展方向
+## 八、已解决的问题
 
-- **Agent 多角色**：`backend/agents/` 已预留目录，可实现不同引导角色
-- **生产部署**：替换 Flask 开发服务器为 gunicorn（同时解决 SSE 阻塞问题）
-- **更多职业模板**：丰富 prompt 中的行业参考素材
-- **评分细化**：当前三维评分较粗糙，可结合用户画像做更细粒度的匹配分析
+| 问题 | 根因 | 修复 |
+|------|------|------|
+| 剧情按钮失效 | `refreshState()` 阻塞 `setStreaming(false)` | 改为 fire-and-forget |
+| 前端显示 `<br />` 和 `*` | prompt 含 HTML 标签 + 缺少 markdown 清洗 | 修改 prompt + `_sanitize_token()` |
+| 选项闪烁消失 | `refreshState` 触发 DOM 重建 | `pendingOptions` 持久化 |
+| 小可跳动不停止 | `pendingAssistantId` 被提前清除 | 全局移除 `.bouncing` |
+| 阶段无法转换 | `<options>` 阻断 `<extraction>` 检测 | 流后补充提取 |
+| 阶段显示回退 | `refreshState` 返回旧数据覆盖 phase | 阶段索引防回退 |
+| 生成中 DOM 闪烁 | `refreshState` 触发全量 DOM 重建 | streaming 期间跳过刷新 + 内容无变化跳过重建 |
+
+---
+
+## 九、待优化项
+
+详见 `docs/roadmap.md`：
+1. 流程管理 Agent — 解耦"内容生成"与"阶段决策"
+2. 管理员后台 — 校验码登录，查看所有用户日志
