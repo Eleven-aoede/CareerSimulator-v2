@@ -250,6 +250,11 @@ function applyFreshSession(payload) {
   if (payload.greeting) {
     addChatMessage("assistant", payload.greeting);
     state.conversationHistory.push({ role: "assistant", content: payload.greeting });
+    const greetingOptions = extractOptionsFromText(payload.greeting);
+    if (greetingOptions.length) {
+      state.pendingOptions = greetingOptions;
+      renderChatOptions(greetingOptions);
+    }
   }
   render();
 }
@@ -267,6 +272,16 @@ function hydrateState(payload) {
     : [];
   state.storyState = payload.story_state || state.storyState;
   state.pendingAssistantId = null;
+
+  if (isChatPhase(state.phase) && state.conversationHistory.length) {
+    const lastAssistant = [...state.conversationHistory].reverse().find((m) => m.role === "assistant");
+    if (lastAssistant) {
+      const opts = extractOptionsFromText(lastAssistant.content);
+      state.pendingOptions = opts.length ? opts : null;
+    }
+  } else {
+    state.pendingOptions = null;
+  }
 
   els.workspace.classList.remove("hidden");
   rebuildChatStream();
@@ -949,6 +964,16 @@ function formatDateTime(value) {
 
 function stripOptionsTag(text) {
   return String(text).replace(/<options>[\s\S]*?<\/options>/g, "").trimEnd();
+}
+
+function extractOptionsFromText(text) {
+  const match = String(text).match(/<options>([\s\S]*?)<\/options>/);
+  if (!match) return [];
+  try {
+    return JSON.parse(match[1].trim());
+  } catch (e) {
+    return [];
+  }
 }
 
 function escapeHtml(value) {

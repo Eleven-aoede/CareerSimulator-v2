@@ -31,6 +31,7 @@ GREETING = (
     "在我们正式出发之前，你可以先告诉我，你想去看看哪个职业吗？"
     "如果能再告诉我一些相关信息就更好啦，比如岗位名称、平时主要在做什么、"
     "公司所在行业，还有公司规模这些，我就能为你定制这段旅程了噢！"
+    '<options>["产品经理", "程序员"]</options>'
 )
 
 TRANSITION_TEXT = (
@@ -113,7 +114,7 @@ def process_message_stream(
 
     extraction = extract_tagged_json(full_response)
     raw_visible = strip_extraction_tag(full_response)
-    visible_no_options, options = _extract_options(raw_visible)
+    _, options = _extract_options(raw_visible)
 
     # 保留 <options> 标签在历史中，LLM 需要上下文
     history_content = _sanitize_token(raw_visible)
