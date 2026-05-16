@@ -91,4 +91,43 @@ class PersistenceService:
                 json.dump(logs, f, ensure_ascii=False, indent=2)
 
 
+    def list_users(self) -> list[dict]:
+        users = []
+        if not os.path.isdir(self.base_dir):
+            return users
+        for name in sorted(os.listdir(self.base_dir)):
+            user_dir = os.path.join(self.base_dir, name)
+            state_file = os.path.join(user_dir, "state.json")
+            if not os.path.isdir(user_dir) or not os.path.exists(state_file):
+                continue
+            try:
+                with open(state_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                users.append({
+                    "username": data.get("username", name),
+                    "phase": data.get("phase", ""),
+                    "last_active": data.get("last_active", ""),
+                    "created_at": data.get("created_at", ""),
+                })
+            except (json.JSONDecodeError, OSError):
+                continue
+        return users
+
+    def load_llm_log(self, username: str) -> list:
+        log_file = os.path.join(self._user_dir(username), "llm_log.json")
+        if not os.path.exists(log_file):
+            return []
+        with FileLock(self._lock_path(username)):
+            with open(log_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+
+    def load_system_log(self, username: str) -> list:
+        log_file = os.path.join(self._user_dir(username), "system_log.json")
+        if not os.path.exists(log_file):
+            return []
+        with FileLock(self._lock_path(username)):
+            with open(log_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+
+
 persistence = PersistenceService()

@@ -60,6 +60,10 @@ const els = {
   resumeCopy: document.getElementById("resume-copy"),
   resumeContinue: document.getElementById("resume-continue"),
   resumeReset: document.getElementById("resume-reset"),
+  adminPanel: document.getElementById("admin-panel"),
+  adminUserList: document.getElementById("admin-user-list"),
+  adminDetail: document.getElementById("admin-detail"),
+  adminLogout: document.getElementById("admin-logout"),
 };
 
 els.usernameForm.addEventListener("submit", onUsernameSubmit);
@@ -67,6 +71,7 @@ els.chatForm.addEventListener("submit", onChatSubmit);
 els.skipProfileButton.addEventListener("click", onSkipProfile);
 els.restartButton.addEventListener("click", onRestartJourney);
 els.storyStage.addEventListener("click", onStoryStageClick);
+els.adminLogout.addEventListener("click", exitAdminMode);
 els.resumeContinue.addEventListener("click", (event) => {
   event.preventDefault();
   closeResumeDialog();
@@ -86,8 +91,8 @@ async function onUsernameSubmit(event) {
     return;
   }
 
-  const username = els.usernameInput.value.trim();
-  if (!username) {
+  const input = els.usernameInput.value.trim();
+  if (!input) {
     setEntryStatus("请输入用户名。", "error");
     return;
   }
@@ -95,11 +100,20 @@ async function onUsernameSubmit(event) {
   lockEntry(true);
   setEntryStatus("正在检查历史状态...", "");
 
+  const adminToken = await tryAdminAuth(input);
+  if (adminToken) {
+    lockEntry(false);
+    els.usernameInput.value = "";
+    setEntryStatus("", "");
+    enterAdminMode(adminToken);
+    return;
+  }
+
   try {
     const { response, data } = await requestJson(apiUrl("/api/users"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username }),
+      body: JSON.stringify({ username: input }),
     });
 
     if (!response.ok) {
@@ -1008,4 +1022,136 @@ function generateId() {
     return window.crypto.randomUUID();
   }
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+// ─── Admin Mode ───
+
+let adminToken = "";
+
+async function tryAdminAuth(key) {
+  try {
+    const { response, data } = await requestJson(apiUrl("/api/admin/auth"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+    });
+    if (response.ok && data.token) {
+      return data.token;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function enterAdminMode(token) {
+  adminToken = token;
+  document.querySelector(".hero-panel").classList.add("hidden");
+  els.workspace.classList.add("hidden");
+  els.adminPanel.classList.remove("hidden");
+  loadAdminUsers();
+}
+
+function exitAdminMode() {
+  adminToken = "";
+  els.adminPanel.classList.add("hidden");
+  document.querySelector(".hero-panel").classList.remove("hidden");
+  els.adminDetail.innerHTML = `<p class="empty-copy">选择左侧用户查看详情</p>`;
+  els.adminUserList.innerHTML = "";
+}
+
+async function loadAdminUsers() {
+  try {
+    const { response, data } = await requestJson(apiUrl("/api/admin/users"), {
+      headers: { "X-Admin-Token": adminToken },
+    });
+    if (!response.ok) return;
+    renderAdminUserList(data);
+  } catch (e) {}
+}
+
+function renderAdminUserList(users) {
+  els.adminUserList.innerHTML = `
+    <div class="section-kicker">用户列表（${users.length}）</div>
+    ${users.map((u) => `
+      <div class="admin-user-item" data-username="${escapeHtml(u.username)}">
+        <strong>${escapeHtml(u.username)}</strong>
+        <span class="admin-user-phase">${escapeHtml(phaseLabel(u.phase))}</span>
+        <span class="admin-user-time">${formatDateTime(u.last_active)}</span>
+      </div>
+    `).join("")}
+  `;
+  els.adminUserList.querySelectorAll(".admin-user-item").forEach((el) => {
+    el.addEventListener("click", () => loadUserDetail(el.dataset.username));
+  });
+}
+
+async function loadUserDetail(username) {
+  els.adminDetail.innerHTML = `<p class="empty-copy">加载中...</p>`;
+
+  const headers = { "X-Admin-Token": adminToken };
+  try {
+    const [convRes, llmRes, sysRes] = await Promise.all([
+      requestJson(apiUrl(`/api/admin/users/${encodeURIComponent(username)}/conversation`), { headers }),
+      requestJson(apiUrl(`/api/admin/users/${encodeURIComponent(username)}/llm-log`), { headers }),
+      requestJson(apiUrl(`/api/admin/users/${encodeURIComponent(username)}/system-log`), { headers }),
+    ]);
+
+    const conversation = convRes.response.ok ? convRes.data : [];
+    const llmLog = llmRes.response.ok ? llmRes.data : [];
+    const systemLog = sysRes.response.ok ? sysRes.data : [];
+
+    renderAdminDetail(username, conversation, llmLog, systemLog);
+  } catch (e) {
+    els.adminDetail.innerHTML = `<p class="empty-copy">加载失败</p>`;
+  }
+}
+
+function renderAdminDetail(username, conversation, llmLog, systemLog) {
+  els.adminDetail.innerHTML = `
+    <div class="admin-detail-header">
+      <h3>${escapeHtml(username)}</h3>
+      <div class="admin-tabs">
+        <button class="admin-tab active" data-tab="conversation">对话历史（${conversation.length}）</button>
+        <button class="admin-tab" data-tab="llm">LLM 日志（${llmLog.length}）</button>
+        <button class="admin-tab" data-tab="system">系统日志（${systemLog.length}）</button>
+      </div>
+    </div>
+    <div class="admin-tab-content" id="admin-tab-content"></div>
+  `;
+
+  const tabContent = document.getElementById("admin-tab-content");
+  const tabs = els.adminDetail.querySelectorAll(".admin-tab");
+
+  function showTab(name) {
+    tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+    if (name === "conversation") {
+      tabContent.innerHTML = renderAdminConversation(conversation);
+    } else if (name === "llm") {
+      tabContent.innerHTML = renderAdminLog(llmLog);
+    } else {
+      tabContent.innerHTML = renderAdminLog(systemLog);
+    }
+  }
+
+  tabs.forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
+  showTab("conversation");
+}
+
+function renderAdminConversation(messages) {
+  if (!messages.length) return `<p class="empty-copy">暂无对话</p>`;
+  return `<div class="admin-conversation">${messages.map((msg) => `
+    <div class="admin-msg admin-msg-${escapeHtml(msg.role)}">
+      <span class="admin-msg-role">${msg.role === "assistant" ? "小可" : "用户"}</span>
+      <span class="admin-msg-content">${escapeHtml(stripOptionsTag(msg.content || ""))}</span>
+    </div>
+  `).join("")}</div>`;
+}
+
+function renderAdminLog(entries) {
+  if (!entries.length) return `<p class="empty-copy">暂无日志</p>`;
+  return `<div class="admin-log">${entries.slice().reverse().map((entry) => `
+    <details class="admin-log-entry">
+      <summary>${escapeHtml(entry.timestamp || "")} — ${escapeHtml(entry.event || entry.model || "entry")}</summary>
+      <pre>${escapeHtml(JSON.stringify(entry, null, 2))}</pre>
+    </details>
+  `).join("")}</div>`;
 }

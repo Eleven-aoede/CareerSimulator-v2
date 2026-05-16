@@ -48,10 +48,12 @@ def create_app():
     from routes.user import user_bp
     from routes.chat import chat_bp
     from routes.story import story_bp
+    from routes.admin import admin_bp
 
     app.register_blueprint(user_bp, url_prefix="/api")
     app.register_blueprint(chat_bp, url_prefix="/api")
     app.register_blueprint(story_bp, url_prefix="/api")
+    app.register_blueprint(admin_bp, url_prefix="/api")
 
     frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
 
