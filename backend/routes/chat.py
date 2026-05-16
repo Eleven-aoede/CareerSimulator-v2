@@ -29,9 +29,14 @@ def chat_stream(username: str):
     logger.info("chat stream start username=%s phase=%s", username, user_state.phase.value)
 
     def event_generator():
+        state_saved = False
         for event in process_message_stream(user_state, message):
+            if event.get("phase_complete") and not state_saved:
+                persistence.save_state(user_state)
+                state_saved = True
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-        persistence.save_state(user_state)
+        if not state_saved:
+            persistence.save_state(user_state)
         persistence.append_history(username, {
             "type": "chat",
             "role": "assistant",
