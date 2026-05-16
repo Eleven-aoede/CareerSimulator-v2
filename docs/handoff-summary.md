@@ -1,204 +1,199 @@
-# 项目交接总结 - IFI Career Simulator v2
+# 项目交接文档 - IFI Career Simulator v2
 
-> 生成时间: 2026-05-15
-> 会话ID: ccbc7937-6a33-4b00-bdb2-46463f72577f
-
----
-
-## 一、项目概述
-
-这是一个**中文职业生涯模拟器**（"职业穿越游戏"），用户提供岗位信息，可选完成性格画像评估，然后体验 AI 生成的分支叙事，模拟在该岗位的工作体验。AI 角色"小可"（XiaoKe）引导整个流程。
-
-**仓库地址**: https://github.com/Eleven-aoede/CareerSimulator-v2.git
+> 更新时间: 2026-05-16
 
 ---
 
-## 二、原始任务要求
+## 一、项目状态
 
-### 功能需求
+所有核心功能已实现并可运行。前后端联调完成，用户可以完整走通从输入姓名到获得结局分析的全流程。
 
-1. **实时交互**: 将一次性生成全部剧情改为按节点逐个生成，每次用户选择后实时生成下一个节点（3-8秒/节点，而非等待完整剧情生成超时）
-2. **用户状态记录**: 流程开始前请求用户 name，以 name 为 key 维护用户状态、历史交互记录、LLM输入输出记录、系统日志
-3. **Resume支持**: 当 username 已存在时，提示用户选择清空历史重新开始或恢复状态继续
-
-### 架构需求
-
-1. **技术栈**: 前端 HTML，后端 Python Flask，conda py3.10 环境，docs 中维护技术选型
-2. **README**: 维护功能描述
-3. **Git管理**: 中文 commit 消息，中等量级更新后 commit，push 由用户负责
-4. **模块化设计**: prompt 单独抽出，预留多 Agent 接口（多角色 + 角色间交互）
-5. **存储**: JSON 文件存储，不用数据库
-
----
-
-## 三、实施计划（5个阶段）
-
-计划文件位于: `.claude/plans/backup-backend-frontend-python-web-1-elegant-token.md`
-
-| 阶段 | 内容 | 状态 |
-|------|------|------|
-| Phase 1 | 基础框架（conda环境 + Flask骨架 + 持久化 + LLM客户端） | ✅ 已完成 |
-| Phase 2 | 信息收集流程（用户路由 + Chat SSE流式传输） | ✅ 已完成 |
-| Phase 3 | 实时剧情生成（逐节点引擎 + Prompt模板） | ✅ 已完成 |
-| Phase 4 | 前端重写（姓名输入 + Resume流程 + 逐节点模拟器） | ❌ 未完成 |
-| Phase 5 | 完善（Agent接口 + 日志 + 文档） | ❌ 未完成 |
+| 模块 | 状态 |
+|------|------|
+| Flask 后端 + API 路由 | ✅ |
+| 信息收集阶段（SSE 流式对话） | ✅ |
+| 逐节点剧情生成引擎 | ✅ |
+| 前端单页应用 | ✅ |
+| 流式内容展示（打字机效果） | ✅ |
+| 小可跳动加载动画 | ✅ |
+| 用户断点续玩 | ✅ |
+| 文件持久化 | ✅ |
+| Agent 多角色扩展 | ⬜ 预留接口，未实现 |
 
 ---
 
-## 四、已完成的工作
-
-### 4.1 后端文件（全部已创建）
+## 二、架构概览
 
 ```
-backend/
-├── app.py                          # Flask应用工厂，注册蓝图，服务前端静态文件
-├── config.py                       # 配置（API key, model, 参数, CORS）
-├── requirements.txt                # flask, flask-cors, openai, python-dotenv, filelock, gunicorn
-├── models/
-│   ├── __init__.py
-│   └── user_state.py               # UserState/StoryState 数据类 + Phase 枚举
-├── routes/
-│   ├── __init__.py
-│   ├── user.py                     # POST /api/users, POST /api/users/<name>/reset, GET /api/users/<name>/state
-│   ├── chat.py                     # POST /api/users/<name>/chat/stream (SSE), POST /api/users/<name>/skip-profile
-│   └── story.py                    # POST /api/users/<name>/story/next-node (SSE流式)
-├── services/
-│   ├── __init__.py
-│   ├── llm_client.py               # OpenAI SDK 封装（流式+非流式+日志）
-│   ├── conversation.py             # 信息收集对话逻辑，提取标签解析，阶段转换
-│   ├── prompt_engine.py            # 构建各阶段的 system prompt + messages
-│   ├── persistence.py              # 基于文件的用户状态持久化（FileLock），管理 state.json/history.json/llm_log.json
-│   └── story_engine.py             # 核心：逐节点剧情生成引擎（meta+intro, 后续节点, 结局）
-├── agents/
-│   └── __init__.py                 # 空占位，未实现
-├── prompts/
-│   ├── story_meta.md               # 生成 meta + intro 节点的 prompt
-│   ├── story_node.md               # 生成单个剧情节点的 prompt
-│   ├── story_ending.md             # 生成结局的 prompt
-│   └── references/
-│       ├── story-node-format.md    # 节点结构参考
-│       └── option-generation.md    # 选项生成参考
-└── utils/
-    ├── __init__.py
-    └── json_extractor.py           # 从 LLM 响应中提取 JSON
+用户浏览器 (frontend/)
+    ↕ SSE (Server-Sent Events)
+Flask 后端 (backend/app.py)
+    ├── routes/user.py      用户创建/恢复/重置
+    ├── routes/chat.py      信息收集阶段对话
+    ├── routes/story.py     剧情节点生成（SSE 流式）
+    ├── services/
+    │   ├── conversation.py     对话逻辑 + 阶段转换
+    │   ├── story_engine.py     剧情引擎（meta/节点/结局）
+    │   ├── llm_client.py       OpenAI SDK 封装
+    │   ├── prompt_engine.py    Prompt 组装
+    │   └── persistence.py      文件读写 + FileLock
+    └── utils/
+        ├── stream_extractor.py   流式 JSON 增量解析器
+        └── json_extractor.py     完整 JSON 提取
 ```
 
-### 4.2 其他已创建文件
+### 数据流
+
+1. 前端通过 `fetch` 发起 POST 请求
+2. 后端返回 SSE 流（`text/event-stream`）
+3. 前端使用 `response.body.getReader()` 逐块读取
+4. 每个 SSE 事件格式：`data: {"type": "xxx", ...}\n\n`
+5. 前端 `streamJsonEvents(url, body, onEvent)` 统一处理所有 SSE 流
+
+### 剧情节点序列
 
 ```
-environment.yml                     # conda py3.10 环境定义
-.gitignore                          # Python/env/IDE 忽略规则
-data/users/.gitkeep                 # 数据目录
+intro → node1 → node2 → node3 → taskAction → taskEmotion → taskDifficulty → node4 → node5 → __ENDING__
 ```
 
-### 4.3 已有的 Prompt 文件（原有，保留）
-
-```
-backend/prompts/
-├── xiaoke_base.md                  # 小可角色定义、语气、格式规则
-├── phase_job.md                    # 岗位信息收集阶段指令
-├── phase_profile.md                # 用户画像收集（9维度，动态提问）
-└── phase_story.md                  # 旧版完整剧情生成 prompt（已被拆分替代，可删除）
-```
-
-### 4.4 API 路由设计
-
-| 方法 | 路径 | 功能 |
-|------|------|------|
-| POST | `/api/users` | 创建/检查用户（返回 `new` 或 `exists`） |
-| POST | `/api/users/<name>/reset` | 重置用户状态 |
-| GET | `/api/users/<name>/state` | 获取完整用户状态 |
-| POST | `/api/users/<name>/chat/stream` | 信息收集 SSE 流式聊天 |
-| POST | `/api/users/<name>/skip-profile` | 跳过画像阶段 |
-| POST | `/api/users/<name>/story/next-node` | 生成下一个剧情节点（SSE流式） |
-
-### 4.5 关键设计决策
-
-- **节点序列固定**: `intro -> node1 -> node2 -> node3 -> taskAction -> taskEmotion -> taskDifficulty -> node4 -> node5 -> __ENDING__`
-- **三维评分**: fit（匹配度）、stress（压力）、growth（成长），每次选择小幅累加
-- **结局分桶**: 根据最终分数分为 high/mid/low 三档
-- **画像影响**: 用户画像影响选项措辞、内心独白、结局分析
-- **LLM 配置**: 使用 xi-ai.cn 的 deepseek-v4-pro 模型（OpenAI兼容接口）
+每个节点由 LLM 实时生成 JSON（含 paragraphs + options），用户选择后触发下一节点。
 
 ---
 
-## 五、未完成的工作
+## 三、流式展示实现
 
-### 5.1 ⚠️ 前端重写（Phase 4 - 最关键）
+### 核心机制
 
-**当前 `frontend/index.html` 仍是旧版，与新后端完全不兼容。**
+`stream_extractor.py` 实现了增量 JSON 解析的状态机，在 LLM 逐 token 输出 JSON 的过程中，实时提取可展示的内容：
 
-旧前端的 API 调用：
-- `POST /api/sessions` → 需改为 `POST /api/users`
-- `POST /api/sessions/<id>/chat/stream` → 需改为 `POST /api/users/<name>/chat/stream`
-- `POST /api/sessions/<id>/generate-story` → 需改为 `POST /api/users/<name>/story/next-node`
+1. **标题提取**：正则匹配 `"title": "..."` 完整闭合后 yield `stream_title` 事件
+2. **段落流式**：定位 `"paragraphs": [` 后，逐字符追踪字符串边界，每个字符 yield `stream_token` 事件
+3. **状态机状态**：SEARCHING → OUTSIDE_STRING → IN_STRING → ESCAPE
 
-前端需要的改动：
-1. **新增姓名输入界面** — 作为首屏，输入用户名后调用 POST `/api/users`
-2. **新增 Resume 选择对话框** — 当用户名已存在时，显示"继续上次"或"重新开始"选项
-3. **移除 Loading 界面** — 不再需要等待完整剧情生成
-4. **模拟器改为逐节点渲染** — 每次选择后调用 `/story/next-node` 获取下一节点，而非一次加载完整剧本
-5. **状态管理调整** — 适配逐节点累积的数据结构
+### SSE 事件类型
 
-### 5.2 Agent 接口（Phase 5）
+| 事件 | 触发时机 |
+|------|----------|
+| `progress` | 开始生成，显示提示文字 |
+| `stream_meta` | meta+intro 模式下，meta 信息就绪 |
+| `stream_title` | 节点标题完整提取 |
+| `stream_token` | 段落内容逐字符 |
+| `stream_done` | 流式预览结束 |
+| `complete` | JSON 验证通过，权威数据 |
+| `ending` | 结局生成完成 |
+| `error` | 生成失败 |
 
-需要创建：
-- `backend/agents/base.py` — Agent 抽象基类
-- `backend/agents/xiaoke.py` — 小可 Agent 实现
-- `backend/agents/registry.py` — Agent 注册中心
+### 前端处理
 
-### 5.3 日志系统（Phase 5）
-
-- `backend/utils/logger.py` — 统一日志工具
-- LLM I/O 日志记录（llm_log.json）— persistence.py 中有接口但未完整使用
-- 系统日志记录（system_log.json）
-
-### 5.4 文档（Phase 5）
-
-- `README.md` — 项目功能描述
-- `docs/architecture.md` — 架构文档
-- `docs/tech-stack.md` — 技术选型文档
-
-### 5.5 Git 提交
-
-**本次会话期间未进行任何 git commit。** 所有改动均为未提交状态。需要：
-1. 整理暂存区（大量删除文件 + 新文件）
-2. 分批或一次性提交（中文 commit message）
+- `showStreamingCard()` — 注入带小可跳动动画的流式卡片
+- `updateStreamingCardTitle(title)` — 显示标题
+- `appendStreamingToken(index, content)` — 逐字追加段落内容
+- `hideStreamingMascot()` — stream_done 时淡出小可
+- `complete`/`ending` 事件到达时，用完整数据替换流式卡片
 
 ---
 
-## 六、建议的接手顺序
+## 四、⚠️ 已知问题：SSE 连接阻塞 Bug
 
-1. **前端重写**（最高优先级）— 没有前端，整个应用无法运行和测试
-2. **端到端测试** — 启动后端，验证 API 正常工作
-3. **Git commit** — 提交当前所有后端变更
-4. **Agent 接口** — 可延后，当前小可角色通过 prompt_engine 直接运作
-5. **文档和日志** — 最低优先级
+**这是当前最大的未修复问题。**
+
+### 现象
+
+在剧情模拟阶段（有时也出现在对话阶段），连续交互 2-3 轮后，发送按钮变为不可点击状态。具体表现：
+
+- 前端 `streamJsonEvents` 中的 `reader.read()` 挂起，永远不返回 `done: true`
+- 后续的 `refreshState()` GET 请求无法发出
+- 按钮的 `disabled` 状态无法恢复
+
+### 根本原因
+
+Flask（werkzeug）开发服务器在 SSE 生成器 return 后，不一定能及时关闭 HTTP 连接。前端依赖 `reader.read()` 返回 `{done: true}` 来判断流结束，但服务器端连接未关闭时这个信号永远不会到达。
+
+### 已实施的缓解措施
+
+1. **事件处理器返回 `true` 信号终止**：`handleChatEvent` 在收到 `done` 事件时返回 `true`，`handleStoryEvent` 在收到 `complete`/`ending` 时返回 `true`，`streamJsonEvents` 检测到 truthy 返回值后 break 循环
+2. **非阻塞 refreshState**：`refreshState().catch(() => {})` 放在 `finally` 块之后而非内部，避免被挂起的 reader 阻塞
+3. **移除 reader.cancel()**：曾尝试在 break 后调用 `reader.cancel()`，但这会导致 Flask 收到 BrokenPipeError，阻塞后续请求的处理
+
+### 为什么问题仍然存在
+
+`return true` 机制依赖前端能正确接收和解析到终止事件（`done`/`complete`/`ending`）。在以下场景中会失败：
+
+- SSE 数据块跨越 chunk 边界，终止事件的 JSON 被拆分到两个 chunk 中时解析失败
+- Flask 输出缓冲导致终止事件没有被立即 flush
+- LLM 响应异常导致后端未 yield 终止事件
+
+### 建议修复方向
+
+1. **替换 Flask 开发服务器**：使用 gunicorn + gevent 或其他异步方案，确保 SSE 连接在生成器结束后立即关闭
+2. **前端超时兜底**：在 `reader.read()` 外包一层 `Promise.race` 超时（如 30s），超时后强制结束循环
+3. **改用 EventSource API 或第三方 SSE 库**：标准 `EventSource` 对连接生命周期管理更可靠，但不支持 POST
+4. **心跳机制**：后端定期发送 `ping` 事件，前端检测心跳超时则主动断开
 
 ---
 
-## 七、运行方式
+## 五、文件清单
+
+### 后端核心
+
+| 文件 | 职责 |
+|------|------|
+| `backend/app.py` | Flask 应用入口，注册蓝图，托管前端静态文件 |
+| `backend/config.py` | 配置加载（config.yaml + CLI 参数 + 环境变量） |
+| `backend/config.yaml` | 默认配置（模型、参数、端口等） |
+| `backend/models/user_state.py` | UserState / StoryState 数据类 + Phase 枚举 |
+| `backend/services/story_engine.py` | 剧情引擎：生成 meta+intro / 节点 / 结局 |
+| `backend/services/conversation.py` | 信息收集对话逻辑 + 阶段转换判断 |
+| `backend/services/llm_client.py` | OpenAI SDK 封装（流式 + 非流式 + 日志记录） |
+| `backend/services/prompt_engine.py` | 构建各阶段的 system prompt + messages |
+| `backend/services/persistence.py` | 文件持久化（state/history/llm_log/system_log） |
+| `backend/utils/stream_extractor.py` | 流式 JSON 增量解析状态机 |
+| `backend/utils/json_extractor.py` | 从 LLM 响应提取完整 JSON |
+
+### Prompt 模板
+
+| 文件 | 用途 |
+|------|------|
+| `backend/prompts/story_meta.md` | 生成 meta + intro 节点 |
+| `backend/prompts/story_node.md` | 生成单个剧情节点 |
+| `backend/prompts/story_ending.md` | 生成结局 |
+| `backend/prompts/xiaoke_base.md` | 小可角色定义 |
+| `backend/prompts/phase_job.md` | 岗位信息收集 |
+| `backend/prompts/phase_profile.md` | 画像收集 |
+
+### 前端
+
+| 文件 | 职责 |
+|------|------|
+| `frontend/index.html` | 页面结构 |
+| `frontend/styles.css` | 样式（含流式卡片 + 小可跳动动画） |
+| `frontend/app.js` | 全部前端逻辑（状态管理、渲染、SSE 处理） |
+
+---
+
+## 六、开发环境
 
 ```bash
-# 创建 conda 环境
 conda env create -f environment.yml
-conda activate career-simulator
+conda activate ifi-career-sim
 
-# 配置环境变量
-export XI_API_KEY="your_xi_key"
-export DEEPSEEK_API_KEY="your_deepseek_key"
+export DEEPSEEK_API_KEY="your_key"
+cd backend && python app.py
+# http://localhost:8000
+```
 
-# 启动
-cd backend
-python app.py
-# 访问 http://localhost:5000
+### 切换模型
+
+```bash
+python app.py --provider deepseek --model deepseek-v4-pro
+python app.py --provider xi --model deepseek-v4-pro
 ```
 
 ---
 
-## 八、注意事项
+## 七、扩展方向
 
-- 需要在 shell 全局环境变量中配置真实 API key（`XI_API_KEY` 或 `DEEPSEEK_API_KEY`）
-- 旧版文件（`backend/main.py`, `backend/routers/`, `backend/services/session_manager.py` 等）已被删除但未 commit
-- `backup/` 目录包含原始参考资料，保留不动
-- `backend/prompts/phase_story.md` 是旧版一次性生成的 prompt，已被 `story_meta.md` + `story_node.md` + `story_ending.md` 替代，可考虑删除
+- **Agent 多角色**：`backend/agents/` 已预留目录，可实现不同引导角色
+- **生产部署**：替换 Flask 开发服务器为 gunicorn（同时解决 SSE 阻塞问题）
+- **更多职业模板**：丰富 prompt 中的行业参考素材
+- **评分细化**：当前三维评分较粗糙，可结合用户画像做更细粒度的匹配分析

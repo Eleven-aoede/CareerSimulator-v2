@@ -34,8 +34,7 @@
 {
   "meta": {
     "eyebrow": "CAREER SIMULATOR / STORY",
-    "title": "职业模拟：{岗位名称}<br />交互脚本",
-    "plainTitle": "职业模拟：{岗位名称}",
+    "title": "职业模拟：{岗位名称}",
     "description": "一段简短说明，说明这段模拟的背景。",
     "settings": [
       { "label": "行业", "value": "..." },

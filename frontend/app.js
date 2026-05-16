@@ -130,6 +130,7 @@ async function onChatSubmit(event) {
     return;
   }
 
+  els.chatStream.querySelectorAll(".chat-options").forEach((el) => el.remove());
   addChatMessage("user", message);
   state.conversationHistory.push({ role: "user", content: message });
   els.chatInput.value = "";
@@ -328,10 +329,10 @@ function renderBoard() {
 
   if (state.phase === "job_collection") {
     els.boardTitle.textContent = "先把岗位说清楚";
-    els.chatInput.placeholder = "例如：产品经理，负责用户研究、需求分析、跨团队推进，所在公司是教育行业中型团队。";
+    els.chatInput.placeholder = "";
   } else if (state.phase === "profile_collection") {
     els.boardTitle.textContent = "再补充一点你的工作画像";
-    els.chatInput.placeholder = "例如：我更喜欢有边界感的协作，不太擅长高压冲突，但愿意承担需要长期打磨的任务。";
+    els.chatInput.placeholder = "";
   } else if (state.phase === "story_simulation") {
     els.boardTitle.textContent = "进入职业剧情";
   } else if (state.phase === "completed") {
@@ -347,10 +348,11 @@ function renderStoryPanel() {
   }
 
   if (state.storyState?.meta) {
+    const displayTitle = state.storyState.meta.plainTitle || state.storyState.meta.title || "职业旅程";
     els.storyMeta.classList.remove("hidden");
     els.storyMeta.innerHTML = `
       <div class="section-kicker">故事设定</div>
-      <h3>${escapeHtml(state.storyState.meta.title || "职业旅程")}</h3>
+      <h3>${escapeHtml(displayTitle)}</h3>
       <div class="story-body"><p>${escapeHtml(state.storyState.meta.description || "")}</p></div>
     `;
   } else {
@@ -405,13 +407,13 @@ async function startStory() {
     await streamJsonEvents(apiUrl(`/api/users/${encodeURIComponent(state.username)}/story/next-node`), {
       action: "start",
     }, handleStoryEvent);
-    await refreshState();
   } catch (error) {
     setGlobalStatus(error.message, "error");
   } finally {
     setStreaming(false);
     render();
   }
+  refreshState().catch(() => {});
 }
 
 async function submitStoryChoice(currentNode, choiceKey) {
@@ -425,13 +427,13 @@ async function submitStoryChoice(currentNode, choiceKey) {
       current_node: currentNode,
       choice_key: choiceKey,
     }, handleStoryEvent);
-    await refreshState();
   } catch (error) {
     setGlobalStatus(error.message, "error");
   } finally {
     setStreaming(false);
     render();
   }
+  refreshState().catch(() => {});
 }
 
 function onStoryStageClick(event) {
@@ -472,6 +474,11 @@ function handleChatEvent(event) {
     }
     render();
     return true;
+  }
+
+  if (event.type === "options") {
+    renderChatOptions(event.items || []);
+    return;
   }
 
   if (event.type === "error") {
@@ -541,13 +548,6 @@ function showStreamingCard() {
   els.storyPanel.classList.remove("hidden");
   els.storyStage.innerHTML = `
     <article class="story-card streaming-card">
-      <div class="streaming-mascot" aria-hidden="true">
-        <div class="streaming-mascot-inner">
-          <div class="mascot-eye left"></div>
-          <div class="mascot-eye right"></div>
-          <div class="mascot-mouth"></div>
-        </div>
-      </div>
       <div class="streaming-content">
         <div class="section-kicker streaming-kicker">生成中...</div>
         <h3 class="streaming-title"></h3>
@@ -590,10 +590,11 @@ function hideStreamingMascot() {
 
 function renderStreamingMeta() {
   if (state.storyState?.meta) {
+    const displayTitle = state.storyState.meta.plainTitle || state.storyState.meta.title || "职业旅程";
     els.storyMeta.classList.remove("hidden");
     els.storyMeta.innerHTML = `
       <div class="section-kicker">故事设定</div>
-      <h3>${escapeHtml(state.storyState.meta.title || "职业旅程")}</h3>
+      <h3>${escapeHtml(displayTitle)}</h3>
       <div class="story-body"><p>${escapeHtml(state.storyState.meta.description || "")}</p></div>
     `;
   }
@@ -604,10 +605,30 @@ function addChatMessage(role, content) {
   const wrapper = document.createElement("article");
   wrapper.className = `message ${role}`;
   wrapper.dataset.messageId = id;
-  wrapper.innerHTML = `
-    <div class="message-role">${role === "assistant" ? "小可" : "你"}</div>
-    <div class="message-content"></div>
-  `;
+
+  if (role === "assistant") {
+    wrapper.innerHTML = `
+      <div class="message-with-avatar">
+        <div class="chat-mascot${state.streaming ? ' bouncing' : ''}">
+          <div class="chat-mascot-inner">
+            <div class="mascot-eye left"></div>
+            <div class="mascot-eye right"></div>
+            <div class="mascot-mouth"></div>
+          </div>
+        </div>
+        <div class="message-body">
+          <div class="message-role">小可</div>
+          <div class="message-content"></div>
+        </div>
+      </div>
+    `;
+  } else {
+    wrapper.innerHTML = `
+      <div class="message-role">你</div>
+      <div class="message-content"></div>
+    `;
+  }
+
   wrapper.querySelector(".message-content").textContent = content;
   els.chatStream.appendChild(wrapper);
   els.chatStream.scrollTop = els.chatStream.scrollHeight;
@@ -654,6 +675,28 @@ function findPendingAssistant() {
   return els.chatStream.querySelector(`[data-message-id="${state.pendingAssistantId}"]`);
 }
 
+function renderChatOptions(items) {
+  if (!items.length) return;
+  const wrapper = document.createElement("div");
+  wrapper.className = "chat-options";
+  items.forEach((item) => {
+    const btn = document.createElement("button");
+    btn.className = "chat-option-btn";
+    btn.type = "button";
+    btn.textContent = item;
+    btn.addEventListener("click", () => onChatOptionClick(item));
+    wrapper.appendChild(btn);
+  });
+  els.chatStream.appendChild(wrapper);
+  els.chatStream.scrollTop = els.chatStream.scrollHeight;
+}
+
+function onChatOptionClick(text) {
+  els.chatStream.querySelectorAll(".chat-options").forEach((el) => el.remove());
+  els.chatInput.value = text;
+  els.chatForm.dispatchEvent(new Event("submit", { cancelable: true }));
+}
+
 function rebuildChatStream() {
   els.chatStream.innerHTML = "";
   for (const item of state.conversationHistory) {
@@ -679,7 +722,7 @@ function renderNodeCard(nodeId, node) {
   const options = Array.isArray(node.options) ? node.options : [];
   return `
     <article class="story-card">
-      <div class="section-kicker">${escapeHtml(nodeId)}</div>
+      <div class="section-kicker">${escapeHtml(node.tag || "")}</div>
       <h3>${escapeHtml(node.title || "继续旅程")}</h3>
       <div class="story-body">
         ${paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("")}
@@ -758,6 +801,15 @@ function setStreaming(flag) {
   els.sendButton.disabled = flag;
   els.skipProfileButton.disabled = flag;
   els.restartButton.disabled = flag;
+
+  const pendingMsg = findPendingAssistant();
+  if (pendingMsg) {
+    const mascot = pendingMsg.querySelector(".chat-mascot");
+    if (mascot) {
+      mascot.classList.toggle("bouncing", flag);
+    }
+  }
+
   render();
 }
 

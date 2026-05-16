@@ -1,9 +1,30 @@
+import json as json_mod
+import re
 from typing import Generator
 
 from models.user_state import UserState, Phase
 from services.llm_client import llm_client
 from services.prompt_engine import build_messages_for_chat
 from utils.json_extractor import extract_tagged_json, strip_extraction_tag
+
+_MARKDOWN_RE = re.compile(r'[*_~`#]')
+_OPTIONS_RE = re.compile(r'<options>\s*(\[.*?\])\s*</options>', re.DOTALL)
+
+
+def _sanitize_token(token: str) -> str:
+    return _MARKDOWN_RE.sub('', token)
+
+
+def _extract_options(text: str) -> tuple[str, list[str]]:
+    match = _OPTIONS_RE.search(text)
+    if match:
+        try:
+            options = json_mod.loads(match.group(1))
+            cleaned = text[:match.start()].rstrip()
+            return cleaned, options
+        except (json_mod.JSONDecodeError, ValueError):
+            pass
+    return text, []
 
 GREETING = (
     "嗨，我是小可，是这次职业旅程的带领者～"
@@ -38,12 +59,13 @@ def process_message_stream(
     full_response = ""
     pending_buffer = ""
     in_extraction = False
+    in_options = False
     done_sent = False
 
     for token in llm_client.chat_stream(messages, username=user_state.username):
         full_response += token
 
-        if in_extraction:
+        if in_extraction or in_options:
             continue
 
         pending_buffer += token
@@ -52,7 +74,7 @@ def process_message_stream(
             if "<extraction>" in pending_buffer:
                 before_tag = pending_buffer.split("<extraction>")[0]
                 if before_tag:
-                    yield {"type": "token", "content": before_tag}
+                    yield {"type": "token", "content": _sanitize_token(before_tag)}
                 in_extraction = True
                 pending_buffer = ""
 
@@ -69,20 +91,30 @@ def process_message_stream(
                 }
                 done_sent = True
 
-            elif not "<extraction>".startswith(pending_buffer[pending_buffer.rindex("<"):]):
-                yield {"type": "token", "content": pending_buffer}
+            elif "<options>" in pending_buffer:
+                before_tag = pending_buffer.split("<options>")[0]
+                if before_tag:
+                    yield {"type": "token", "content": _sanitize_token(before_tag)}
+                in_options = True
+                pending_buffer = ""
+
+            elif not _tag_prefix_match(pending_buffer):
+                yield {"type": "token", "content": _sanitize_token(pending_buffer)}
                 pending_buffer = ""
         else:
-            yield {"type": "token", "content": pending_buffer}
+            yield {"type": "token", "content": _sanitize_token(pending_buffer)}
             pending_buffer = ""
 
-    if pending_buffer and not in_extraction:
+    if pending_buffer and not in_extraction and not in_options:
         clean = pending_buffer.split("<extraction>")[0] if "<extraction>" in pending_buffer else pending_buffer
+        clean = clean.split("<options>")[0] if "<options>" in clean else clean
         if clean:
-            yield {"type": "token", "content": clean}
+            yield {"type": "token", "content": _sanitize_token(clean)}
 
     extraction = extract_tagged_json(full_response)
-    visible_response = strip_extraction_tag(full_response)
+    raw_visible = strip_extraction_tag(full_response)
+    visible_no_options, options = _extract_options(raw_visible)
+    visible_response = _sanitize_token(visible_no_options)
 
     user_state.conversation_history.append(
         {"role": "assistant", "content": visible_response}
@@ -94,6 +126,9 @@ def process_message_stream(
         elif user_state.phase == Phase.STORY_SIMULATION:
             user_state.user_profile = extraction.get("user_profile", extraction)
 
+    if options:
+        yield {"type": "options", "items": options}
+
     if not done_sent:
         yield {
             "type": "done",
@@ -101,6 +136,11 @@ def process_message_stream(
             "phase_complete": False,
             "transition_text": None,
         }
+
+
+def _tag_prefix_match(buffer: str) -> bool:
+    tail = buffer[buffer.rindex("<"):]
+    return "<extraction>".startswith(tail) or "<options>".startswith(tail)
 
 
 def skip_profile(user_state: UserState) -> str:
