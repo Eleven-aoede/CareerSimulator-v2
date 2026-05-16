@@ -271,9 +271,15 @@ function hydrateState(payload) {
   state.jobInput = payload.job_input || null;
   state.userProfile = payload.user_profile || null;
   state.profileSkipped = Boolean(payload.profile_skipped);
-  state.conversationHistory = Array.isArray(payload.conversation_history)
+
+  const incomingHistory = Array.isArray(payload.conversation_history)
     ? payload.conversation_history.slice()
     : [];
+  const historyChanged =
+    incomingHistory.length !== state.conversationHistory.length ||
+    JSON.stringify(incomingHistory[incomingHistory.length - 1]) !==
+      JSON.stringify(state.conversationHistory[state.conversationHistory.length - 1]);
+  state.conversationHistory = incomingHistory;
   state.storyState = payload.story_state || state.storyState;
   state.pendingAssistantId = null;
 
@@ -288,7 +294,9 @@ function hydrateState(payload) {
   }
 
   els.workspace.classList.remove("hidden");
-  rebuildChatStream();
+  if (historyChanged) {
+    rebuildChatStream();
+  }
   render();
 }
 
@@ -365,6 +373,9 @@ function renderBoard() {
 
 function renderStoryPanel() {
   if (!isStoryPhase(state.phase)) {
+    return;
+  }
+  if (state.streaming) {
     return;
   }
 
@@ -733,12 +744,15 @@ function rebuildChatStream() {
 }
 
 async function refreshState() {
-  if (!state.username) {
+  if (!state.username || state.streaming) {
     return;
   }
   const { response, data } = await requestJson(apiUrl(`/api/users/${encodeURIComponent(state.username)}/state`));
   if (!response.ok) {
     throw new Error(data.error || "同步状态失败");
+  }
+  if (state.streaming) {
+    return;
   }
   hydrateState(data);
 }
