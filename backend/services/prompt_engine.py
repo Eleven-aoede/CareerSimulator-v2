@@ -16,10 +16,29 @@ def build_system_prompt(user_state: UserState) -> str:
     return agent_registry.get("xiaoke").build_chat_system_prompt(user_state)
 
 
+_OPTIONS_REMINDER = (
+    "【系统提醒：你的回复末尾必须附加 <options>[\"选项1\", \"选项2\"]</options> 标签，不要遗漏。】"
+)
+
+
 def build_messages_for_chat(user_state: UserState) -> list[dict]:
+    from models.user_state import Phase
+
     system_prompt = build_system_prompt(user_state)
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(user_state.conversation_history)
+
+    need_options_reminder = False
+    if user_state.phase == Phase.PROFILE_COLLECTION:
+        need_options_reminder = True
+    elif user_state.phase == Phase.JOB_COLLECTION:
+        user_msgs = [m for m in user_state.conversation_history if m["role"] == "user"]
+        if len(user_msgs) >= 1:
+            need_options_reminder = True
+
+    if need_options_reminder and messages and messages[-1]["role"] == "user":
+        messages.insert(-1, {"role": "system", "content": _OPTIONS_REMINDER})
+
     return messages
 
 
