@@ -1,0 +1,38 @@
+# 当前默认模型提供商：xi 或 deepseek
+provider_name: deepseek
+
+# 旧接口 provider 的 base_url
+xi_api_base_url: "https://api.xi-ai.cn/v1"
+
+# 新接口 provider 的 base_url
+deepseek_api_base_url: "https://api.deepseek.com"
+
+# 当前使用的模型名
+model_name: "deepseek-v4-flash"
+
+# DeepSeek 可选参数：low / medium / high
+reasoning_effort: ""
+
+# DeepSeek 可选参数：enabled / disabled
+thinking_type: "disabled"
+
+# 聊天阶段最大 tokens
+max_tokens_chat: 8092
+
+# 单个剧情节点最大 tokens
+max_tokens_node: 4096
+
+# 结局阶段最大 tokens
+max_tokens_ending: 4096
+
+# 用户数据目录，支持相对路径
+data_dir: "../data/users"
+
+# CORS 白名单
+cors_origins:
+  - "*"
+
+# Flask 启动配置
+host: "0.0.0.0"
+port: 8000
+debug: true

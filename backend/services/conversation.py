@@ -1,6 +1,6 @@
-from typing import AsyncGenerator
+from typing import Generator
 
-from models.session import Session, Phase
+from models.user_state import UserState, Phase
 from services.llm_client import llm_client
 from services.prompt_engine import build_messages_for_chat
 from utils.json_extractor import extract_tagged_json, strip_extraction_tag
@@ -21,26 +21,26 @@ TRANSITION_TEXT = (
 )
 
 
-def initialize_session(session: Session) -> str:
-    session.conversation_history.append(
+def initialize_session(user_state: UserState) -> str:
+    user_state.conversation_history.append(
         {"role": "assistant", "content": GREETING}
     )
     return GREETING
 
 
-async def process_message_stream(
-    session: Session, user_message: str
-) -> AsyncGenerator[dict, None]:
-    session.touch()
-    session.conversation_history.append({"role": "user", "content": user_message})
+def process_message_stream(
+    user_state: UserState, user_message: str
+) -> Generator[dict, None, None]:
+    user_state.touch()
+    user_state.conversation_history.append({"role": "user", "content": user_message})
 
-    messages = build_messages_for_chat(session)
+    messages = build_messages_for_chat(user_state)
     full_response = ""
     pending_buffer = ""
     in_extraction = False
     done_sent = False
 
-    async for token in llm_client.chat_stream(messages):
+    for token in llm_client.chat_stream(messages, username=user_state.username):
         full_response += token
 
         if in_extraction:
@@ -56,17 +56,16 @@ async def process_message_stream(
                 in_extraction = True
                 pending_buffer = ""
 
-                # Immediately transition phase so skip-profile won't race
-                if session.phase == Phase.JOB_COLLECTION:
-                    session.phase = Phase.PROFILE_COLLECTION
-                elif session.phase == Phase.PROFILE_COLLECTION:
-                    session.phase = Phase.STORY_GENERATION
+                if user_state.phase == Phase.JOB_COLLECTION:
+                    user_state.phase = Phase.PROFILE_COLLECTION
+                elif user_state.phase == Phase.PROFILE_COLLECTION:
+                    user_state.phase = Phase.STORY_SIMULATION
 
                 yield {
                     "type": "done",
-                    "phase": session.phase.value,
+                    "phase": user_state.phase.value,
                     "phase_complete": True,
-                    "transition_text": TRANSITION_TEXT if session.phase == Phase.PROFILE_COLLECTION else None,
+                    "transition_text": TRANSITION_TEXT if user_state.phase == Phase.PROFILE_COLLECTION else None,
                 }
                 done_sent = True
 
@@ -77,54 +76,47 @@ async def process_message_stream(
             yield {"type": "token", "content": pending_buffer}
             pending_buffer = ""
 
-    # Flush remaining buffer
     if pending_buffer and not in_extraction:
         clean = pending_buffer.split("<extraction>")[0] if "<extraction>" in pending_buffer else pending_buffer
         if clean:
             yield {"type": "token", "content": clean}
 
-    # Parse extraction and update session state
     extraction = extract_tagged_json(full_response)
     visible_response = strip_extraction_tag(full_response)
 
-    session.conversation_history.append(
+    user_state.conversation_history.append(
         {"role": "assistant", "content": visible_response}
     )
 
     if extraction:
-        if session.phase == Phase.PROFILE_COLLECTION:
-            # Phase already transitioned; store extracted job data
-            session.job_input = extraction
-        elif session.phase == Phase.STORY_GENERATION:
-            # Phase already transitioned; store extracted profile data
-            session.user_profile = extraction.get("user_profile", extraction)
+        if user_state.phase == Phase.PROFILE_COLLECTION:
+            user_state.job_input = extraction
+        elif user_state.phase == Phase.STORY_SIMULATION:
+            user_state.user_profile = extraction.get("user_profile", extraction)
 
-    # If no extraction was found, send a normal done event
     if not done_sent:
         yield {
             "type": "done",
-            "phase": session.phase.value,
+            "phase": user_state.phase.value,
             "phase_complete": False,
             "transition_text": None,
         }
 
 
-async def skip_profile(session: Session) -> str:
-    session.touch()
+def skip_profile(user_state: UserState) -> str:
+    user_state.touch()
 
-    # Collect any user messages from profile phase as raw context (no LLM call)
     profile_user_msgs = [
-        msg["content"] for msg in session.conversation_history
+        msg["content"] for msg in user_state.conversation_history
         if msg["role"] == "user"
     ]
 
-    # If user answered at least one profile question, keep raw answers as context
-    if len(profile_user_msgs) >= 2 and session.phase == Phase.PROFILE_COLLECTION:
-        session.user_profile = {"raw_answers": profile_user_msgs[1:], "partial": True}
-        session.profile_skipped = False
-        session.phase = Phase.STORY_GENERATION
+    if len(profile_user_msgs) >= 2 and user_state.phase == Phase.PROFILE_COLLECTION:
+        user_state.user_profile = {"raw_answers": profile_user_msgs[1:], "partial": True}
+        user_state.profile_skipped = False
+        user_state.phase = Phase.STORY_SIMULATION
         return "好的，我已经记住了刚才聊到的部分～接下来我会根据已有的了解为你生成职业旅程。"
 
-    session.profile_skipped = True
-    session.phase = Phase.STORY_GENERATION
+    user_state.profile_skipped = True
+    user_state.phase = Phase.STORY_SIMULATION
     return "好的，那我们直接出发吧～我会用一个比较通用的视角来为你生成这段职业旅程。"
