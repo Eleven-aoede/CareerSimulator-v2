@@ -122,6 +122,12 @@ def process_message_stream(
         {"role": "assistant", "content": history_content}
     )
 
+    if extraction and not done_sent:
+        if user_state.phase == Phase.JOB_COLLECTION:
+            user_state.phase = Phase.PROFILE_COLLECTION
+        elif user_state.phase == Phase.PROFILE_COLLECTION:
+            user_state.phase = Phase.STORY_SIMULATION
+
     if extraction:
         if user_state.phase == Phase.PROFILE_COLLECTION:
             user_state.job_input = extraction
@@ -135,8 +141,8 @@ def process_message_stream(
         yield {
             "type": "done",
             "phase": user_state.phase.value,
-            "phase_complete": False,
-            "transition_text": None,
+            "phase_complete": bool(extraction),
+            "transition_text": TRANSITION_TEXT if extraction and user_state.phase == Phase.PROFILE_COLLECTION else None,
         }
 
 
