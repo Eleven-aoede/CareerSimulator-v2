@@ -261,7 +261,11 @@ function applyFreshSession(payload) {
 
 function hydrateState(payload) {
   state.username = payload.username;
-  state.phase = payload.phase;
+  const currentIndex = PHASE_META.findIndex((item) => item.key === state.phase);
+  const incomingIndex = PHASE_META.findIndex((item) => item.key === payload.phase);
+  if (incomingIndex >= currentIndex || currentIndex === -1) {
+    state.phase = payload.phase;
+  }
   state.createdAt = payload.created_at || "";
   state.lastActive = payload.last_active || "";
   state.jobInput = payload.job_input || null;
