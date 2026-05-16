@@ -25,6 +25,7 @@ const state = {
   },
   streaming: false,
   pendingAssistantId: null,
+  pendingOptions: null,
 };
 
 const els = {
@@ -131,6 +132,7 @@ async function onChatSubmit(event) {
   }
 
   els.chatStream.querySelectorAll(".chat-options").forEach((el) => el.remove());
+  state.pendingOptions = null;
   addChatMessage("user", message);
   state.conversationHistory.push({ role: "user", content: message });
   els.chatInput.value = "";
@@ -477,7 +479,8 @@ function handleChatEvent(event) {
   }
 
   if (event.type === "options") {
-    renderChatOptions(event.items || []);
+    state.pendingOptions = event.items || [];
+    renderChatOptions(state.pendingOptions);
     return;
   }
 
@@ -693,6 +696,7 @@ function renderChatOptions(items) {
 
 function onChatOptionClick(text) {
   els.chatStream.querySelectorAll(".chat-options").forEach((el) => el.remove());
+  state.pendingOptions = null;
   els.chatInput.value = text;
   els.chatForm.dispatchEvent(new Event("submit", { cancelable: true }));
 }
@@ -703,6 +707,9 @@ function rebuildChatStream() {
     if (item.role === "assistant" || item.role === "user") {
       addChatMessage(item.role, item.content || "");
     }
+  }
+  if (state.pendingOptions && state.pendingOptions.length) {
+    renderChatOptions(state.pendingOptions);
   }
 }
 
@@ -802,11 +809,17 @@ function setStreaming(flag) {
   els.skipProfileButton.disabled = flag;
   els.restartButton.disabled = flag;
 
-  const pendingMsg = findPendingAssistant();
-  if (pendingMsg) {
-    const mascot = pendingMsg.querySelector(".chat-mascot");
-    if (mascot) {
-      mascot.classList.toggle("bouncing", flag);
+  if (!flag) {
+    els.chatStream.querySelectorAll(".chat-mascot.bouncing").forEach((el) => {
+      el.classList.remove("bouncing");
+    });
+  } else {
+    const pendingMsg = findPendingAssistant();
+    if (pendingMsg) {
+      const mascot = pendingMsg.querySelector(".chat-mascot");
+      if (mascot) {
+        mascot.classList.add("bouncing");
+      }
     }
   }
 
