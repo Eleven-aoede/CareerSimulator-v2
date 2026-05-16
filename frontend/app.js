@@ -632,7 +632,7 @@ function addChatMessage(role, content) {
     `;
   }
 
-  wrapper.querySelector(".message-content").textContent = content;
+  wrapper.querySelector(".message-content").textContent = stripOptionsTag(content);
   els.chatStream.appendChild(wrapper);
   els.chatStream.scrollTop = els.chatStream.scrollHeight;
   return id;
@@ -945,6 +945,10 @@ function formatDateTime(value) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function stripOptionsTag(text) {
+  return String(text).replace(/<options>[\s\S]*?<\/options>/g, "").trimEnd();
 }
 
 function escapeHtml(value) {

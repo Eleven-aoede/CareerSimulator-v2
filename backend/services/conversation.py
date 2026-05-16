@@ -114,10 +114,11 @@ def process_message_stream(
     extraction = extract_tagged_json(full_response)
     raw_visible = strip_extraction_tag(full_response)
     visible_no_options, options = _extract_options(raw_visible)
-    visible_response = _sanitize_token(visible_no_options)
 
+    # 保留 <options> 标签在历史中，LLM 需要上下文
+    history_content = _sanitize_token(raw_visible)
     user_state.conversation_history.append(
-        {"role": "assistant", "content": visible_response}
+        {"role": "assistant", "content": history_content}
     )
 
     if extraction:
