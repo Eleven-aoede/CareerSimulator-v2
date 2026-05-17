@@ -31,6 +31,7 @@ class UserState:
     profile_skipped: bool = False
     conversation_history: list = field(default_factory=list)
     story_state: StoryState = field(default_factory=StoryState)
+    session_id: Optional[str] = field(default=None, repr=False)
 
     def touch(self):
         self.last_active = datetime.now().isoformat()

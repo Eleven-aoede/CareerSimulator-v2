@@ -52,7 +52,7 @@ class LLMClient:
 
     def chat(
         self, messages: list[dict], temperature: float = 0.8, max_tokens: int = 2048,
-        username: str = None
+        username: str = None, session_id: str = None
     ) -> str:
         start = time.time()
         logger.info("llm chat start user=%s provider=%s model=%s", username or "anonymous", self.provider_name, self.model)
@@ -63,8 +63,8 @@ class LLMClient:
             stream=False,
         ))
         content = resp.choices[0].message.content
-        if username:
-            persistence.append_llm_log(username, {
+        if username and session_id:
+            persistence.append_llm_log(username, session_id, {
                 "purpose": "chat",
                 "provider": self.provider_name,
                 "model": self.model,
@@ -77,7 +77,7 @@ class LLMClient:
 
     def chat_stream(
         self, messages: list[dict], temperature: float = 0.8, max_tokens: int = 2048,
-        username: str = None
+        username: str = None, session_id: str = None
     ) -> Generator[str, None, None]:
         start = time.time()
         logger.info("llm stream start user=%s provider=%s model=%s", username or "anonymous", self.provider_name, self.model)
@@ -93,8 +93,8 @@ class LLMClient:
                 token = chunk.choices[0].delta.content
                 full_response += token
                 yield token
-        if username:
-            persistence.append_llm_log(username, {
+        if username and session_id:
+            persistence.append_llm_log(username, session_id, {
                 "purpose": "chat_stream",
                 "provider": self.provider_name,
                 "model": self.model,

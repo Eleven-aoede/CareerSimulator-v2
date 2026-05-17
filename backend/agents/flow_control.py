@@ -47,7 +47,8 @@ class FlowControlAgent:
         ]
 
         response = llm_client.chat(
-            messages, temperature=0.2, max_tokens=1024, username=user_state.username
+            messages, temperature=0.2, max_tokens=1024,
+            username=user_state.username, session_id=user_state.session_id
         )
         return self._parse_response(response)
 

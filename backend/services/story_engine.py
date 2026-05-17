@@ -25,7 +25,7 @@ class StoryEngine:
         try:
             for token in llm_client.chat_stream(
                 messages, temperature=0.7, max_tokens=settings.max_tokens_node,
-                username=user_state.username
+                username=user_state.username, session_id=user_state.session_id
             ):
                 full_response += token
                 for event in extractor.feed(full_response):
@@ -39,7 +39,7 @@ class StoryEngine:
         result = extract_json_from_response(full_response)
         if not result:
             yield {"type": "progress", "message": "正在重新整理内容..."}
-            result = self._retry_generation(messages, user_state.username)
+            result = self._retry_generation(messages, user_state.username, user_state.session_id)
 
         if result and self._validate_meta_intro(result):
             meta = result.get("meta", {})
@@ -61,7 +61,7 @@ class StoryEngine:
         try:
             for token in llm_client.chat_stream(
                 messages, temperature=0.7, max_tokens=settings.max_tokens_node,
-                username=user_state.username
+                username=user_state.username, session_id=user_state.session_id
             ):
                 full_response += token
                 for event in extractor.feed(full_response):
@@ -75,7 +75,7 @@ class StoryEngine:
         result = extract_json_from_response(full_response)
         if not result:
             yield {"type": "progress", "message": "正在重新整理内容..."}
-            result = self._retry_generation(messages, user_state.username)
+            result = self._retry_generation(messages, user_state.username, user_state.session_id)
 
         node_data = result.get("node", result) if result else None
 
@@ -96,7 +96,7 @@ class StoryEngine:
         try:
             for token in llm_client.chat_stream(
                 messages, temperature=0.7, max_tokens=settings.max_tokens_ending,
-                username=user_state.username
+                username=user_state.username, session_id=user_state.session_id
             ):
                 full_response += token
                 for event in extractor.feed(full_response):
@@ -110,7 +110,7 @@ class StoryEngine:
         result = extract_json_from_response(full_response)
         if not result:
             yield {"type": "progress", "message": "正在重新整理内容..."}
-            result = self._retry_generation(messages, user_state.username)
+            result = self._retry_generation(messages, user_state.username, user_state.session_id)
 
         if result and self._validate_ending(result):
             user_state.story_state.generated_nodes["ending"] = result
@@ -122,12 +122,12 @@ class StoryEngine:
         else:
             yield {"type": "error", "message": "结局生成失败，请重试"}
 
-    def _retry_generation(self, messages: list[dict], username: str):
+    def _retry_generation(self, messages: list[dict], username: str, session_id: str = None):
         try:
             full_response = ""
             for token in llm_client.chat_stream(
                 messages, temperature=0.5, max_tokens=settings.max_tokens_node,
-                username=username
+                username=username, session_id=session_id
             ):
                 full_response += token
             return extract_json_from_response(full_response)

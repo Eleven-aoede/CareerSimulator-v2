@@ -164,16 +164,15 @@
       </div>
     </section>
 
-    <dialog id="resume-dialog" class="resume-dialog">
-      <form method="dialog" class="resume-card">
+    <dialog id="sessions-dialog" class="sessions-dialog">
+      <div class="sessions-card">
         <p class="section-kicker">发现历史记录</p>
-        <h2 id="resume-title" class="dialog-title">是否继续上次旅程？</h2>
-        <p id="resume-copy" class="dialog-copy"></p>
+        <h2 id="sessions-title" class="dialog-title">欢迎回来</h2>
+        <div id="sessions-list" class="sessions-list"></div>
         <div class="dialog-actions">
-          <button id="resume-continue" class="primary-btn" value="continue">继续上次</button>
-          <button id="resume-reset" class="ghost-btn" value="reset">重新开始</button>
+          <button id="sessions-new" class="primary-btn" type="button">新建旅程</button>
         </div>
-      </form>
+      </div>
     </dialog>
 
     <script src="./app.js"></script>

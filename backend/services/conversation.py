@@ -58,7 +58,7 @@ def process_message_stream(
     pending_buffer = ""
     in_options = False
 
-    for token in llm_client.chat_stream(messages, username=user_state.username):
+    for token in llm_client.chat_stream(messages, username=user_state.username, session_id=user_state.session_id):
         full_response += token
 
         if in_options:

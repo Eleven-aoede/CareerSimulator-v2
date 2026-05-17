@@ -9,6 +9,7 @@ const API_BASE = window.location.protocol === "file:" ? "http://localhost:8000" 
 
 const state = {
   username: "",
+  sessionId: "",
   phase: "",
   lastActive: "",
   createdAt: "",
@@ -55,11 +56,10 @@ const els = {
   storyPanel: document.getElementById("story-panel"),
   storyMeta: document.getElementById("story-meta"),
   storyStage: document.getElementById("story-stage"),
-  resumeDialog: document.getElementById("resume-dialog"),
-  resumeTitle: document.getElementById("resume-title"),
-  resumeCopy: document.getElementById("resume-copy"),
-  resumeContinue: document.getElementById("resume-continue"),
-  resumeReset: document.getElementById("resume-reset"),
+  sessionsDialog: document.getElementById("sessions-dialog"),
+  sessionsTitle: document.getElementById("sessions-title"),
+  sessionsList: document.getElementById("sessions-list"),
+  sessionsNew: document.getElementById("sessions-new"),
   adminPanel: document.getElementById("admin-panel"),
   adminUserList: document.getElementById("admin-user-list"),
   adminDetail: document.getElementById("admin-detail"),
@@ -72,15 +72,9 @@ els.skipProfileButton.addEventListener("click", onSkipProfile);
 els.restartButton.addEventListener("click", onRestartJourney);
 els.storyStage.addEventListener("click", onStoryStageClick);
 els.adminLogout.addEventListener("click", exitAdminMode);
-els.resumeContinue.addEventListener("click", (event) => {
-  event.preventDefault();
-  closeResumeDialog();
-  void loadExistingSession(state.username);
-});
-els.resumeReset.addEventListener("click", (event) => {
-  event.preventDefault();
-  closeResumeDialog();
-  void resetSession(state.username);
+els.sessionsNew.addEventListener("click", () => {
+  closeSessionsDialog();
+  void createNewSession(state.username);
 });
 
 render();
@@ -122,10 +116,11 @@ async function onUsernameSubmit(event) {
 
     state.username = data.username;
     if (data.status === "exists") {
-      showResumeDialog(data);
+      showSessionsDialog(data.username, data.sessions);
     } else {
+      state.sessionId = data.session_id;
       applyFreshSession(data);
-      setEntryStatus(`欢迎回来，${data.username}。`, "success");
+      setEntryStatus(`欢迎，${data.username}。`, "success");
     }
   } catch (error) {
     setEntryStatus(error.message, "error");
@@ -157,7 +152,7 @@ async function onChatSubmit(event) {
   setGlobalStatus("小可正在回复...", "");
 
   try {
-    await streamJsonEvents(apiUrl(`/api/users/${encodeURIComponent(state.username)}/chat/stream`), {
+    await streamJsonEvents(apiUrl(`/api/users/${encodeURIComponent(state.username)}/sessions/${encodeURIComponent(state.sessionId)}/chat/stream`), {
       message,
     }, handleChatEvent);
     syncPendingAssistant();
@@ -180,7 +175,7 @@ async function onSkipProfile() {
   setStreaming(true);
   setGlobalStatus("正在跳过画像阶段...", "");
   try {
-    const { response, data } = await requestJson(apiUrl(`/api/users/${encodeURIComponent(state.username)}/skip-profile`), {
+    const { response, data } = await requestJson(apiUrl(`/api/users/${encodeURIComponent(state.username)}/sessions/${encodeURIComponent(state.sessionId)}/skip-profile`), {
       method: "POST",
     });
     if (!response.ok) {
@@ -201,19 +196,22 @@ async function onSkipProfile() {
 }
 
 async function onRestartJourney() {
-  if (!state.username || state.streaming) {
+  if (!state.username || !state.sessionId || state.streaming) {
     return;
   }
-  await resetSession(state.username);
+  await resetSession(state.username, state.sessionId);
 }
 
-async function loadExistingSession(username) {
+async function loadExistingSession(username, sessionId) {
   setGlobalStatus("正在恢复你的旅程...", "");
   try {
-    const { response, data } = await requestJson(apiUrl(`/api/users/${encodeURIComponent(username)}/state`));
+    const { response, data } = await requestJson(apiUrl(`/api/users/${encodeURIComponent(username)}/sessions/${encodeURIComponent(sessionId)}/load`), {
+      method: "POST",
+    });
     if (!response.ok) {
       throw new Error(data.error || "恢复失败");
     }
+    state.sessionId = sessionId;
     hydrateState(data);
     setEntryStatus(`已恢复 ${username} 的历史状态。`, "success");
     setGlobalStatus("历史状态已恢复。", "success");
@@ -223,15 +221,36 @@ async function loadExistingSession(username) {
   }
 }
 
-async function resetSession(username) {
+async function createNewSession(username) {
+  setGlobalStatus("正在创建新旅程...", "");
+  try {
+    const { response, data } = await requestJson(apiUrl(`/api/users/${encodeURIComponent(username)}/sessions`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error(data.error || "创建失败");
+    }
+    state.sessionId = data.session_id;
+    applyFreshSession(data);
+    setEntryStatus(`已为 ${username} 创建新旅程。`, "success");
+    setGlobalStatus("你可以描述岗位信息了。", "success");
+  } catch (error) {
+    setEntryStatus(error.message, "error");
+    setGlobalStatus(error.message, "error");
+  }
+}
+
+async function resetSession(username, sessionId) {
   setGlobalStatus("正在重新开始...", "");
   try {
-    const { response, data } = await requestJson(apiUrl(`/api/users/${encodeURIComponent(username)}/reset`), {
+    const { response, data } = await requestJson(apiUrl(`/api/users/${encodeURIComponent(username)}/sessions/${encodeURIComponent(sessionId)}/reset`), {
       method: "POST",
     });
     if (!response.ok) {
       throw new Error(data.error || "重置失败");
     }
+    state.sessionId = data.session_id;
     applyFreshSession(data);
     setEntryStatus(`已重置 ${username} 的旅程。`, "success");
     setGlobalStatus("你可以重新描述岗位信息了。", "success");
@@ -243,6 +262,7 @@ async function resetSession(username) {
 
 function applyFreshSession(payload) {
   state.username = payload.username;
+  state.sessionId = payload.session_id || state.sessionId;
   state.phase = payload.phase;
   state.createdAt = new Date().toISOString();
   state.lastActive = state.createdAt;
@@ -450,7 +470,7 @@ async function startStory() {
   setStreaming(true);
   setGlobalStatus("正在生成开场节点...", "");
   try {
-    await streamJsonEvents(apiUrl(`/api/users/${encodeURIComponent(state.username)}/story/next-node`), {
+    await streamJsonEvents(apiUrl(`/api/users/${encodeURIComponent(state.username)}/sessions/${encodeURIComponent(state.sessionId)}/story/next-node`), {
       action: "start",
     }, handleStoryEvent);
   } catch (error) {
@@ -469,7 +489,7 @@ async function submitStoryChoice(currentNode, choiceKey) {
   setStreaming(true);
   setGlobalStatus("小可正在推进故事...", "");
   try {
-    await streamJsonEvents(apiUrl(`/api/users/${encodeURIComponent(state.username)}/story/next-node`), {
+    await streamJsonEvents(apiUrl(`/api/users/${encodeURIComponent(state.username)}/sessions/${encodeURIComponent(state.sessionId)}/story/next-node`), {
       current_node: currentNode,
       choice_key: choiceKey,
     }, handleStoryEvent);
@@ -758,10 +778,12 @@ function rebuildChatStream() {
 }
 
 async function refreshState() {
-  if (!state.username || state.streaming) {
+  if (!state.username || !state.sessionId || state.streaming) {
     return;
   }
-  const { response, data } = await requestJson(apiUrl(`/api/users/${encodeURIComponent(state.username)}/state`));
+  const { response, data } = await requestJson(apiUrl(`/api/users/${encodeURIComponent(state.username)}/sessions/${encodeURIComponent(state.sessionId)}/load`), {
+    method: "POST",
+  });
   if (!response.ok) {
     throw new Error(data.error || "同步状态失败");
   }
@@ -810,19 +832,36 @@ function renderEndingCard(ending) {
   `;
 }
 
-function showResumeDialog(payload) {
-  els.resumeTitle.textContent = `找到 ${payload.username} 的历史记录`;
-  els.resumeCopy.textContent = `当前阶段：${phaseLabel(payload.phase)}。上次节点：${payload.current_node || "尚未进入剧情"}。最近活动：${formatDateTime(payload.last_active)}。`;
-  if (typeof els.resumeDialog.showModal === "function") {
-    els.resumeDialog.showModal();
+function showSessionsDialog(username, sessions) {
+  els.sessionsTitle.textContent = `欢迎回来，${username}！`;
+  els.sessionsList.innerHTML = sessions.map((s) => {
+    const preview = s.preview || "（尚未开始对话）";
+    return `
+      <div class="session-item" data-session-id="${escapeHtml(s.session_id)}">
+        <div class="session-time">${formatDateTime(s.created_at)}</div>
+        <div class="session-preview">${escapeHtml(preview)}</div>
+        <div class="session-phase">${phaseLabel(s.phase)}</div>
+      </div>
+    `;
+  }).join("");
+
+  els.sessionsList.querySelectorAll(".session-item").forEach((el) => {
+    el.addEventListener("click", () => {
+      closeSessionsDialog();
+      void loadExistingSession(username, el.dataset.sessionId);
+    });
+  });
+
+  if (typeof els.sessionsDialog.showModal === "function") {
+    els.sessionsDialog.showModal();
   } else {
-    els.resumeDialog.setAttribute("open", "open");
+    els.sessionsDialog.setAttribute("open", "open");
   }
 }
 
-function closeResumeDialog() {
-  if (els.resumeDialog.open) {
-    els.resumeDialog.close();
+function closeSessionsDialog() {
+  if (els.sessionsDialog.open) {
+    els.sessionsDialog.close();
   }
 }
 
@@ -1074,25 +1113,60 @@ function renderAdminUserList(users) {
     ${users.map((u) => `
       <div class="admin-user-item" data-username="${escapeHtml(u.username)}">
         <strong>${escapeHtml(u.username)}</strong>
-        <span class="admin-user-phase">${escapeHtml(phaseLabel(u.phase))}</span>
+        <span class="admin-user-phase">${u.session_count || 1} 条记录</span>
         <span class="admin-user-time">${formatDateTime(u.last_active)}</span>
       </div>
     `).join("")}
   `;
   els.adminUserList.querySelectorAll(".admin-user-item").forEach((el) => {
-    el.addEventListener("click", () => loadUserDetail(el.dataset.username));
+    el.addEventListener("click", () => loadUserSessions(el.dataset.username));
   });
 }
 
-async function loadUserDetail(username) {
+async function loadUserSessions(username) {
+  els.adminDetail.innerHTML = `<p class="empty-copy">加载中...</p>`;
+  const headers = { "X-Admin-Token": adminToken };
+  try {
+    const { response, data } = await requestJson(apiUrl(`/api/admin/users/${encodeURIComponent(username)}/sessions`), { headers });
+    if (!response.ok) {
+      els.adminDetail.innerHTML = `<p class="empty-copy">加载失败</p>`;
+      return;
+    }
+    renderAdminSessionList(username, data);
+  } catch (e) {
+    els.adminDetail.innerHTML = `<p class="empty-copy">加载失败</p>`;
+  }
+}
+
+function renderAdminSessionList(username, sessions) {
+  els.adminDetail.innerHTML = `
+    <div class="admin-detail-header">
+      <h3>${escapeHtml(username)} 的会话列表</h3>
+    </div>
+    <div class="admin-sessions-list">
+      ${sessions.map((s) => `
+        <div class="admin-session-item" data-username="${escapeHtml(username)}" data-session-id="${escapeHtml(s.session_id)}">
+          <strong>${formatDateTime(s.created_at)}</strong>
+          <span>${escapeHtml(s.preview || "（无预览）")}</span>
+          <span class="admin-user-phase">${escapeHtml(phaseLabel(s.phase))}</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+  els.adminDetail.querySelectorAll(".admin-session-item").forEach((el) => {
+    el.addEventListener("click", () => loadSessionDetail(el.dataset.username, el.dataset.sessionId));
+  });
+}
+
+async function loadSessionDetail(username, sessionId) {
   els.adminDetail.innerHTML = `<p class="empty-copy">加载中...</p>`;
 
   const headers = { "X-Admin-Token": adminToken };
   try {
     const [convRes, llmRes, sysRes] = await Promise.all([
-      requestJson(apiUrl(`/api/admin/users/${encodeURIComponent(username)}/conversation`), { headers }),
-      requestJson(apiUrl(`/api/admin/users/${encodeURIComponent(username)}/llm-log`), { headers }),
-      requestJson(apiUrl(`/api/admin/users/${encodeURIComponent(username)}/system-log`), { headers }),
+      requestJson(apiUrl(`/api/admin/users/${encodeURIComponent(username)}/sessions/${encodeURIComponent(sessionId)}/conversation`), { headers }),
+      requestJson(apiUrl(`/api/admin/users/${encodeURIComponent(username)}/sessions/${encodeURIComponent(sessionId)}/llm-log`), { headers }),
+      requestJson(apiUrl(`/api/admin/users/${encodeURIComponent(username)}/sessions/${encodeURIComponent(sessionId)}/system-log`), { headers }),
     ]);
 
     const conversation = convRes.response.ok ? convRes.data : [];

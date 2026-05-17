@@ -16,12 +16,12 @@ NODE_SEQUENCE = [
 ]
 
 
-@story_bp.route("/users/<username>/story/next-node", methods=["POST"])
-def next_node(username: str):
-    if not persistence.user_exists(username):
-        return jsonify({"error": "用户不存在"}), 404
+@story_bp.route("/users/<username>/sessions/<session_id>/story/next-node", methods=["POST"])
+def next_node(username: str, session_id: str):
+    if not persistence.session_exists(username, session_id):
+        return jsonify({"error": "会话不存在"}), 404
 
-    user_state = persistence.load_state(username)
+    user_state = persistence.load_state(username, session_id)
     data = request.get_json()
     action = data.get("action")
     choice_key = data.get("choice_key")
@@ -33,14 +33,14 @@ def next_node(username: str):
 
         def gen_start():
             success = False
-            logger.info("story start username=%s", username)
+            logger.info("story start username=%s session=%s", username, session_id)
             for event in story_engine.generate_meta_and_intro(user_state):
                 if event.get("type") == "complete":
                     success = True
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
             if success:
-                persistence.save_state(user_state)
-                persistence.append_system_log(username, {"event": "story_started"})
+                persistence.save_state(user_state, session_id)
+                persistence.append_system_log(username, session_id, {"event": "story_started"})
 
         return Response(gen_start(), mimetype="text/event-stream", headers=_sse_headers())
 
@@ -68,7 +68,7 @@ def next_node(username: str):
         for k in ("fit", "stress", "growth"):
             user_state.story_state.scores[k] += effect.get(k, 0)
 
-        logger.info("story choice username=%s node=%s choice=%s", username, current_node, choice_key)
+        logger.info("story choice username=%s session=%s node=%s choice=%s", username, session_id, current_node, choice_key)
 
         if next_node_id == "__ENDING__":
             def gen_ending():
@@ -78,19 +78,19 @@ def next_node(username: str):
                         success = True
                     yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
                 if success:
-                    persistence.save_state(user_state)
-                    persistence.append_history(username, {
+                    persistence.save_state(user_state, session_id)
+                    persistence.append_history(username, session_id, {
                         "type": "story_choice",
                         "node_id": current_node,
                         "choice_key": choice_key,
                         "choice_label": choice_label,
                     })
-                    persistence.append_system_log(username, {
+                    persistence.append_system_log(username, session_id, {
                         "event": "story_choice",
                         "node_id": current_node,
                         "choice_key": choice_key,
                     })
-                    persistence.append_system_log(username, {"event": "story_completed"})
+                    persistence.append_system_log(username, session_id, {"event": "story_completed"})
 
             return Response(gen_ending(), mimetype="text/event-stream", headers=_sse_headers())
         else:
@@ -101,19 +101,19 @@ def next_node(username: str):
                         success = True
                     yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
                 if success:
-                    persistence.save_state(user_state)
-                    persistence.append_history(username, {
+                    persistence.save_state(user_state, session_id)
+                    persistence.append_history(username, session_id, {
                         "type": "story_choice",
                         "node_id": current_node,
                         "choice_key": choice_key,
                         "choice_label": choice_label,
                     })
-                    persistence.append_system_log(username, {
+                    persistence.append_system_log(username, session_id, {
                         "event": "story_choice",
                         "node_id": current_node,
                         "choice_key": choice_key,
                     })
-                    persistence.append_system_log(username, {
+                    persistence.append_system_log(username, session_id, {
                         "event": "node_generated",
                         "node_id": next_node_id,
                     })
