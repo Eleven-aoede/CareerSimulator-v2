@@ -1,6 +1,6 @@
 # IFI 职业穿越模拟器
 
-基于 LLM 多轮对话与结构化 Prompt Engineering 的职业体验模拟产品。通过多阶段 System Prompt 引导大模型输出结构化数据，结合 SSE 流式传输实现实时交互，利用自定义标签协议（`<extraction>` / `<options>`）实现 AI 输出的前后端协议化处理，最终为用户生成个性化、可交互的职业模拟剧情。
+基于 LLM 多轮对话与多 Agent 协作的职业体验模拟产品。通过多阶段 System Prompt 引导大模型生成自然对话，结合独立的 flow-control agent 实现阶段推进决策，利用 SSE 流式传输和自定义标签协议（`<options>`）实现实时交互，最终为用户生成个性化、可交互的职业模拟剧情。
 
 ## 体验流程
 
@@ -12,8 +12,8 @@
 
 ## 核心技术亮点
 
-- **多阶段 Prompt 编排** — 每个阶段使用独立 System Prompt，通过 Agent 架构管理角色与阶段切换
-- **标签协议驱动阶段转换** — LLM 输出 `<extraction>` 标签触发结构化数据提取和阶段推进
+- **多 Agent 协作架构** — xiaoke agent 负责自然对话生成，flow-control agent 独立判断阶段推进，两者完全解耦
+- **多阶段 Prompt 编排** — 每个阶段使用独立 System Prompt，通过 Agent 架构管理角色切换
 - **SSE 流式生成** — 后端 Generator + 前端 ReadableStream，实现逐 token 打字机效果
 - **流式 JSON 增量解析** — 自研状态机在 LLM 输出 JSON 过程中实时提取可渲染内容
 - **前后端状态同步** — 防竞态阶段管理，保证 UI 状态与服务端一致
@@ -56,9 +56,9 @@ python app.py --provider deepseek --model deepseek-v4-pro --port 8000
 
 ```
 ├── backend/
-│   ├── agents/           # Agent 架构（角色管理 + prompt 生成）
+│   ├── agents/           # Agent 架构（xiaoke 对话 + flow-control 阶段判断）
 │   ├── models/           # 数据模型（UserState, StoryState, Phase）
-│   ├── prompts/          # 各阶段 Prompt 模板
+│   ├── prompts/          # 各阶段 Prompt 模板（含 flow-control 判断 prompt）
 │   ├── routes/           # API 路由（user, chat, story）
 │   ├── services/         # 核心服务（对话、剧情引擎、LLM 客户端、持久化）
 │   └── utils/            # 工具（流式 JSON 解析、标签提取）
